@@ -47,10 +47,24 @@ def home(request: Request, page: int = 1, limit: int = 50):
         (limit, offset),
     ).fetchall()
 
+    naf_codes = conn.execute(
+        """
+        SELECT code, name from naf_code
+        """,
+    ).fetchall()
+
     conn.close()
 
     # Convertir les Row en dict pour le template
     companies_list = [dict(row) for row in companies]
+    naf_code_list = [dict(row) for row in naf_codes]
+
+    code_to_name = {item["code"]: item["name"] for item in naf_code_list}
+
+    for company in companies_list:
+        code = company.get("activitePrincipaleEtablissement")
+        if code in code_to_name:
+            company["libelle"] = code_to_name[code]
 
     total_pages = (total_count + limit - 1) // limit
 

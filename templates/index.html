@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,14 +11,14 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #f5f7fa;
             padding: 20px;
             color: #333;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -26,13 +27,13 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             padding: 30px;
         }
-        
+
         h1 {
             color: #2c3e50;
             margin-bottom: 10px;
             font-size: 2em;
         }
-        
+
         .header-info {
             display: flex;
             justify-content: space-between;
@@ -41,12 +42,12 @@
             flex-wrap: wrap;
             gap: 15px;
         }
-        
+
         .stats {
             color: #666;
             font-size: 0.95em;
         }
-        
+
         .pagination {
             display: flex;
             gap: 10px;
@@ -54,7 +55,7 @@
             justify-content: center;
             margin: 20px 0;
         }
-        
+
         .pagination button {
             padding: 8px 16px;
             background: #3498db;
@@ -65,33 +66,33 @@
             font-size: 0.95em;
             transition: background 0.3s;
         }
-        
+
         .pagination button:hover:not(:disabled) {
             background: #2980b9;
         }
-        
+
         .pagination button:disabled {
             background: #ccc;
             cursor: not-allowed;
         }
-        
+
         .pagination span {
             color: #555;
             font-weight: 500;
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
             margin: 20px 0;
         }
-        
+
         thead {
             background: #ecf0f1;
             position: sticky;
             top: 0;
         }
-        
+
         th {
             padding: 12px;
             text-align: left;
@@ -99,20 +100,20 @@
             border-bottom: 2px solid #bdc3c7;
             color: #2c3e50;
         }
-        
+
         td {
             padding: 12px;
             border-bottom: 1px solid #ecf0f1;
         }
-        
+
         tbody tr:hover {
             background: #f9f9f9;
         }
-        
+
         tbody tr:nth-child(even) {
             background: #fafafa;
         }
-        
+
         .no-data {
             text-align: center;
             padding: 40px;
@@ -121,6 +122,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header-info">
@@ -132,7 +134,7 @@
                 Page {{ page }} / {{ total_pages }}
             </div>
         </div>
-        
+
         {% if companies %}
         <div class="pagination">
             {% if page > 1 %}
@@ -142,18 +144,17 @@
             <button disabled>⬅️ Première</button>
             <button disabled>◀️ Précédent</button>
             {% endif %}
-            
+
             <span>Page {{ page }} sur {{ total_pages }}</span>
-            
-            {% if page < total_pages %}
-            <a href="/?page={{ page + 1 }}"><button>Suivant ▶️</button></a>
-            <a href="/?page={{ total_pages }}"><button>Dernière ⬅️</button></a>
-            {% else %}
-            <button disabled>Suivant ▶️</button>
-            <button disabled>Dernière ⬅️</button>
-            {% endif %}
+
+            {% if page < total_pages %} <a href="/?page={{ page + 1 }}"><button>Suivant ▶️</button></a>
+                <a href="/?page={{ total_pages }}"><button>Dernière ⬅️</button></a>
+                {% else %}
+                <button disabled>Suivant ▶️</button>
+                <button disabled>Dernière ⬅️</button>
+                {% endif %}
         </div>
-        
+
         <table>
             <thead>
                 <tr>
@@ -161,6 +162,7 @@
                     <th>NIC</th>
                     <th>Date création établissement</th>
                     <th>Effectif</th>
+                    <th>Code NAF</th>
                     <th>Activité principale</th>
                 </tr>
             </thead>
@@ -172,11 +174,12 @@
                     <td>{{ company.dateCreationEtablissement }}</td>
                     <td>{{ company.trancheEffectifsEtablissement }}</td>
                     <td>{{ company.activitePrincipaleEtablissement }}</td>
+                    <td>{{ company.libelle }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        
+
         <div class="pagination">
             {% if page > 1 %}
             <a href="/?page=1"><button>⬅️ Première</button></a>
@@ -185,18 +188,17 @@
             <button disabled>⬅️ Première</button>
             <button disabled>◀️ Précédent</button>
             {% endif %}
-            
+
             <span>Page {{ page }} sur {{ total_pages }}</span>
-            
-            {% if page < total_pages %}
-            <a href="/?page={{ page + 1 }}"><button>Suivant ▶️</button></a>
-            <a href="/?page={{ total_pages }}"><button>Dernière ⬅️</button></a>
-            {% else %}
-            <button disabled>Suivant ▶️</button>
-            <button disabled>Dernière ⬅️</button>
-            {% endif %}
+
+            {% if page < total_pages %} <a href="/?page={{ page + 1 }}"><button>Suivant ▶️</button></a>
+                <a href="/?page={{ total_pages }}"><button>Dernière ⬅️</button></a>
+                {% else %}
+                <button disabled>Suivant ▶️</button>
+                <button disabled>Dernière ⬅️</button>
+                {% endif %}
         </div>
-        
+
         {% else %}
         <div class="no-data">
             ⚠️ Aucune entreprise trouvée
@@ -204,4 +206,5 @@
         {% endif %}
     </div>
 </body>
+
 </html>
