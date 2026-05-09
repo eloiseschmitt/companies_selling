@@ -64,6 +64,20 @@
             margin-left: 8px;
         }
 
+        .score-info {
+            margin-top: 12px;
+            padding: 14px 16px;
+            background: #f8fafc;
+            border: 1px solid #d9e2ec;
+            border-radius: 6px;
+            color: #334155;
+            line-height: 1.5;
+        }
+
+        .score-info strong {
+            color: #1f2d3d;
+        }
+
         .nav-link {
             display: inline-block;
             margin-top: 10px;
@@ -129,6 +143,18 @@
             font-weight: 600;
             border-bottom: 2px solid #bdc3c7;
             color: #2c3e50;
+        }
+
+        .sortable-link {
+            color: inherit;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sortable-link:hover {
+            text-decoration: underline;
         }
 
         td {
@@ -202,20 +228,26 @@
         </div>
 
         {% if companies %}
+        <div class="score-info">
+            <strong>Calcul du score :</strong>
+            0 par défaut, +3 si la date de création de l'établissement est supérieure à 30 ans,
+            +2 si le nombre de salariés est supérieur à 5 et inférieur à 20.
+        </div>
+
         {% if selected_section %}
         <div class="filter-info">
             Filtre actif :
             <strong>{{ selected_section }}</strong>
             {% if selected_section_name %}{{ selected_section_name }}{% endif %}
-            <a href="/">retirer le filtre</a>
+            <a href="/?sort_score={{ sort_score }}">retirer le filtre</a>
         </div>
         {% endif %}
 
         <div class="pagination">
             {% if page > 1 %}
-            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>⬅️
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>⬅️
                     Première</button></a>
-            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>◀️
+            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>◀️
                     Précédent</button></a>
             {% else %}
             <button disabled>⬅️ Première</button>
@@ -225,9 +257,9 @@
             <span>Page {{ page }} sur {{ total_pages }}</span>
 
             {% if page < total_pages %} <a
-                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}">
+                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}">
                 <button>Suivant ▶️</button></a>
-                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Dernière
+                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>Dernière
                         ⬅️</button></a>
                 {% else %}
                 <button disabled>Suivant ▶️</button>
@@ -244,7 +276,13 @@
                     <th>Nombre de salariés</th>
                     <th>Code NAF</th>
                     <th>Activité principale</th>
-                    <th>Score</th>
+                    <th>
+                        <a class="sortable-link"
+                            href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ next_sort_score }}">
+                            <span>Score</span>
+                            <span>{% if sort_score == "asc" %}↑{% else %}↓{% endif %}</span>
+                        </a>
+                    </th>
                 </tr>
             </thead>
             <tbody>
@@ -275,9 +313,9 @@
 
         <div class="pagination">
             {% if page > 1 %}
-            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>⬅️
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>⬅️
                     Première</button></a>
-            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>◀️
+            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>◀️
                     Précédent</button></a>
             {% else %}
             <button disabled>⬅️ Première</button>
@@ -287,9 +325,9 @@
             <span>Page {{ page }} sur {{ total_pages }}</span>
 
             {% if page < total_pages %} <a
-                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}">
+                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}">
                 <button>Suivant ▶️</button></a>
-                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Dernière
+                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>Dernière
                         ⬅️</button></a>
                 {% else %}
                 <button disabled>Suivant ▶️</button>

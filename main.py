@@ -126,6 +126,34 @@ def build_section_filter_clause(section_code: str | None) -> tuple[str, list[str
     return " WHERE activitePrincipaleEtablissement LIKE ?", [f"{normalized_code}%"]
 
 
+def get_score_sort_direction(sort_score: str | None) -> str:
+    """Normalise la direction de tri du score."""
+    if sort_score == "asc":
+        return "ASC"
+    return "DESC"
+
+
+def get_company_score_sql() -> str:
+    """Retourne l'expression SQL du score métier."""
+    return """
+        (
+            CASE
+                WHEN dateCreationEtablissement IS NOT NULL
+                     AND dateCreationEtablissement != ''
+                     AND dateCreationEtablissement < date('now', '-30 years')
+                THEN 3
+                ELSE 0
+            END
+            +
+            CASE
+                WHEN trancheEffectifsEtablissement IN ('03', '11')
+                THEN 2
+                ELSE 0
+            END
+        )
+    """
+
+
 def company_is_older_than_30_years(creation_date: str | None) -> bool:
     """Retourne True si la date de création a plus de 30 ans."""
     if not creation_date:
@@ -164,10 +192,18 @@ def compute_company_score(company: dict) -> int:
 
 
 @app.get("/")
-def home(request: Request, page: int = 1, limit: int = 50, section: str | None = None):
+def home(
+    request: Request,
+    page: int = 1,
+    limit: int = 50,
+    section: str | None = None,
+    sort_score: str | None = None,
+):
     """Affiche la page HTML avec les données des entreprises."""
     conn = get_db_connection()
     where_clause, where_params = build_section_filter_clause(section)
+    score_sort_direction = get_score_sort_direction(sort_score)
+    score_sql = get_company_score_sql()
     total_count = conn.execute(
         f"SELECT COUNT(*) as count FROM companies{where_clause}",
         where_params,
@@ -177,12 +213,14 @@ def home(request: Request, page: int = 1, limit: int = 50, section: str | None =
     companies = conn.execute(
         f"""
         SELECT siret, nic, dateCreationEtablissement, 
-               trancheEffectifsEtablissement, activitePrincipaleEtablissement
+               trancheEffectifsEtablissement, activitePrincipaleEtablissement,
+               {score_sql} AS score
         FROM companies
         {where_clause}
         ORDER BY SUBSTR(activitePrincipaleEtablissement, 1, 2),
                  SUBSTR(activitePrincipaleEtablissement, 1, 4),
                  activitePrincipaleEtablissement,
+                 score {score_sort_direction},
                  dateCreationEtablissement DESC,
                  siret
         LIMIT ? OFFSET ?
@@ -201,7 +239,6 @@ def home(request: Request, page: int = 1, limit: int = 50, section: str | None =
     companies_list = [
         {
             **dict(row),
-            "score": compute_company_score(dict(row)),
             "trancheEffectifsEtablissement": MAPPING_HEADCOUNT.get(
                 dict(row).get("trancheEffectifsEtablissement"),
                 dict(row).get("trancheEffectifsEtablissement"),
@@ -230,6 +267,8 @@ def home(request: Request, page: int = 1, limit: int = 50, section: str | None =
         "limit": limit,
         "selected_section": section,
         "selected_section_name": selected_section_name,
+        "sort_score": sort_score or "desc",
+        "next_sort_score": "asc" if (sort_score or "desc") == "desc" else "desc",
     }
 
     return templates.TemplateResponse(request, "index.html", context)
