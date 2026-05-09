@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Companies</title>
+</head>
+<body>
+
+<h1>Companies</h1>
+
+<table border="1">
+    <tr>
+        <th>SIREN</th>
+        <th>NAF</th>
+    </tr>
+
+    {% for company in companies %}
+    <tr>
+        <td>{{ company.siren }}</td>
+        <td>{{ company.naf }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>
