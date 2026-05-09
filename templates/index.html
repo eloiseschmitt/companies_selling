@@ -114,6 +114,33 @@
             background: #fafafa;
         }
 
+        tr.section-row:hover {
+            background: inherit;
+        }
+
+        tr.section-level-2 td,
+        tr.section-level-3 td {
+            font-weight: 700;
+            color: #1f2d3d;
+        }
+
+        tr.section-level-2 td {
+            background: #dfeaf4;
+            border-top: 2px solid #b7cadb;
+        }
+
+        tr.section-level-3 td {
+            background: #edf3f8;
+            padding-left: 28px;
+        }
+
+        .section-code {
+            display: inline-block;
+            min-width: 56px;
+            margin-right: 8px;
+            font-family: monospace;
+        }
+
         .no-data {
             text-align: center;
             padding: 40px;
@@ -168,6 +195,14 @@
             </thead>
             <tbody>
                 {% for company in companies %}
+                {% if company.row_type == "section" %}
+                <tr class="section-row section-level-{{ company.section_level }}">
+                    <td colspan="6">
+                        <span class="section-code">{{ company.section_code }}</span>
+                        <span>{{ company.section_name }}</span>
+                    </td>
+                </tr>
+                {% else %}
                 <tr>
                     <td><strong>{{ company.siret }}</strong></td>
                     <td>{{ company.nic }}</td>
@@ -176,6 +211,7 @@
                     <td>{{ company.activitePrincipaleEtablissement }}</td>
                     <td>{{ company.libelle }}</td>
                 </tr>
+                {% endif %}
                 {% endfor %}
             </tbody>
         </table>
