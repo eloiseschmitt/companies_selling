@@ -1,67 +1,136 @@
 # companies_selling
 
-Ce dépôt contient deux petits scripts pour extraire et visualiser des informations d'établissements à partir du fichier
-`StockEtablissement_utf8.csv` fourni et d'une table SQLite intermédiaire :
+Application FastAPI pour explorer une base SQLite d'entreprises et leur hiérarchie NAF.
 
-- `retrieve_siren_companies.py` : lit `StockEtablissement_utf8.csv` par chunks, applique des filtres, et écrit les enregistrements retenus dans la base SQLite `companies.db` (table `companies`).
-- `generate_companies_html.py` : lit `companies.db` et génère `companies.html` — une page HTML paginée (client-side) avec tri et filtre. Une colonne `Libellé` est ajoutée en mappant les codes NAF via `int_courts_naf_rev_2.xls` si présent.
+Le dépôt contient aujourd'hui deux modes d'usage :
 
-Etat actuel
+- une application web serveur dans `main.py`
+- un générateur HTML statique dans `generate_companies_html.py`
 
-- `retrieve_siren_companies.py` : filtre les établissements (siège = true, état administratif = A, date de création ≤ 2000-01-01, tranches d'effectifs dans [01,02,03,11,12]) et insère les colonnes suivantes dans `companies` :
-  - `siret`, `nic`, `dateCreationEtablissement`, `trancheEffectifsEtablissement`, `activitePrincipaleEtablissement`.
-- `generate_companies_html.py` :
-  - embarque toutes les lignes en JSON dans la page et affiche 50 lignes par page par défaut;
-  - permet de trier par `dateCreationEtablissement` et `trancheEffectifsEtablissement` (clic sur l'en-tête) ;
-  - propose un filtre sur `activitePrincipaleEtablissement` (sélecteur) ;
-  - tente de lire `int_courts_naf_rev_2.xls` (colonne `Code` et colonne d'intitulés contenant `Intitul`) pour remplir la nouvelle colonne `Libellé` ; si un code NAF est présent mais non mappé, la valeur sera `INCONNU` ; si `pandas` n'est pas installé ou le fichier absent, `Libellé` restera vide.
+## Fonctionnalités
 
-Prérequis
+### Page entreprises `/`
 
-- Python 3.8+
-- Dépendances (recommandé via `requirements.txt`) :
-  - `tqdm` (déjà listé)
-  - `pandas` et `xlrd` si vous souhaitez activer le mapping NAF depuis `int_courts_naf_rev_2.xls`
+La page principale affiche les établissements de la table `companies` avec :
 
-Installation rapide
+- regroupement par sections NAF
+  - ligne de section niveau `2` caractères, ex. `01`
+  - ligne de sous-section niveau `4` caractères, ex. `01.1`
+- repli/extension des sections et sous-sections par clic
+- filtre par section via le paramètre `section`
+  - ex. `/?section=01`
+  - ex. `/?section=15.1`
+- pagination serveur
+- tri sur la colonne `Score` en ascendant ou descendant via `sort_score`
+- affichage du libellé NAF à partir de la table `naf_code`
+
+### Calcul du score
+
+Le score est calculé dynamiquement pour chaque entreprise :
+
+- `0` par défaut
+- `+3` si `dateCreationEtablissement` est supérieure à `30` ans
+- `+2` si `trancheEffectifsEtablissement` correspond à un effectif strictement supérieur à `5` et strictement inférieur à `20`
+  - codes utilisés : `03` et `11`
+
+### Page sections NAF `/naf_sections`
+
+Cette page affiche :
+
+- les sections NAF de niveau `2` caractères
+- leurs sous-sections de niveau `4` caractères
+- un lien cliquable sur chaque section et sous-section vers la page entreprises filtrée
+
+## Structure des données
+
+### Table `companies`
+
+Colonnes utilisées :
+
+- `siret`
+- `nic`
+- `dateCreationEtablissement`
+- `trancheEffectifsEtablissement`
+- `activitePrincipaleEtablissement`
+
+### Table `naf_code`
+
+Colonnes utilisées :
+
+- `code`
+- `name`
+
+La hiérarchie NAF est déduite depuis le format des codes :
+
+- `01` : niveau 2
+- `01.1` : niveau 4
+- `01.11`, `01.11Z` : codes enfants rattachés à `01.1`, lui-même rattaché à `01`
+
+## Prérequis
+
+- Python `3.10+` recommandé
+- dépendances Python listées dans `requirements.txt`
+
+## Installation
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
-# installer pandas/xlrd si nécessaire
-pip install pandas xlrd
 ```
 
-Usage
-
-1) Générez la base SQLite à partir du CSV (lecture par chunks) :
+## Lancer l'application web
 
 ```bash
-python3 retrieve_siren_companies.py
+uvicorn main:app --reload
 ```
 
-2) Générez la page HTML paginée :
+Puis ouvrir :
 
-```bash
-python3 generate_companies_html.py
+- `http://127.0.0.1:8000/`
+- `http://127.0.0.1:8000/naf_sections`
+
+## Routes principales
+
+- `/` : liste des entreprises
+- `/naf_sections` : liste des sections NAF
+- `/api/companies` : API JSON des entreprises
+- `/api/naf_sections` : API JSON des codes NAF
+
+## Paramètres utiles
+
+### Page entreprises `/`
+
+- `page` : numéro de page
+- `limit` : nombre de lignes par page
+- `section` : filtre par préfixe NAF
+- `sort_score` : `asc` ou `desc`
+
+Exemples :
+
+```text
+/?section=01
+/?section=15.1&sort_score=asc
+/?page=3&section=56&sort_score=desc
 ```
 
-3) Servez la page localement et ouvrez-la dans votre navigateur :
+## Scripts du dépôt
 
-```bash
-python3 -m http.server 8000
-# ouvrir http://localhost:8000/companies.html
-```
+- `main.py` : application FastAPI principale
+- `populate_naf_db.py` : alimentation de la table `naf_code`
+- `retrieve_siren_companies.py` : import des entreprises dans `companies.db`
+- `generate_companies_html.py` : génération de `companies.html` en statique
 
-Fichiers importants
+## Fichiers importants
 
-- `StockEtablissement_utf8.csv` : source CSV d'origine (non commité normalement).
-- `companies.db` : base SQLite générée contenant la table `companies`.
-- `generate_companies_html.py` : génère `companies.html` (filtre / tri / pagination côté client).
-- `int_courts_naf_rev_2.xls` : (optionnel) fichier Excel utilisé pour mapper `Code NAF` → `Libellé`.
+- `companies.db` : base SQLite locale
+- `templates/index.html` : page entreprises
+- `templates/naf_sections.html` : page sections NAF
+- `constants.py` : mapping des tranches d'effectifs
 
-Remarques
+## Notes
 
-- Le script `generate_companies_html.py` embarque toutes les données dans le HTML (JSON). Pour de très gros jeux de données, envisager une pagination serveur ou une génération côté serveur par lots afin d'éviter de charger tout en mémoire côté client.
-
+- la page principale conserve l'organisation par sections NAF même quand le tri par score est activé
+- le tri par score s'applique à l'intérieur de cette hiérarchie
+- le générateur `generate_companies_html.py` existe encore, mais la documentation ci-dessus concerne principalement l'application FastAPI
