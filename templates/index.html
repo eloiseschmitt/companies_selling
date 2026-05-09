@@ -48,6 +48,20 @@
             font-size: 0.95em;
         }
 
+        .nav-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 9px 14px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+        }
+
+        .nav-link:hover {
+            background: #2980b9;
+        }
+
         .pagination {
             display: flex;
             gap: 10px;
@@ -164,6 +178,7 @@
             <div>
                 <h1>📊 Entreprises</h1>
                 <p class="stats">Total : {{ total_count }} enregistrement{{ "s" if total_count != 1 else "" }}</p>
+                <a class="nav-link" href="/naf_sections">Voir les sections NAF</a>
             </div>
             <div class="stats">
                 Page {{ page }} / {{ total_pages }}

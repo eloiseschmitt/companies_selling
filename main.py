@@ -81,6 +81,40 @@ def build_display_rows(companies_list: list[dict], code_to_name: dict[str, str])
     return display_rows
 
 
+def build_naf_sections_tree(naf_rows: list[sqlite3.Row]) -> list[dict]:
+    """Construit l'arbre des sections NAF de niveau 2 et 4 caractères."""
+    sections_level_2 = []
+    code_to_section: dict[str, dict] = {}
+
+    for row in naf_rows:
+        code = row["code"]
+        if len(code) == 2:
+            section = {
+                "code": code,
+                "name": row["name"],
+                "children": [],
+            }
+            sections_level_2.append(section)
+            code_to_section[code] = section
+
+    for row in naf_rows:
+        code = row["code"]
+        if len(code) != 4:
+            continue
+        parent_code = code[:2]
+        parent_section = code_to_section.get(parent_code)
+        if not parent_section:
+            continue
+        parent_section["children"].append(
+            {
+                "code": code,
+                "name": row["name"],
+            }
+        )
+
+    return sections_level_2
+
+
 @app.get("/")
 def home(request: Request, page: int = 1, limit: int = 50):
     """Affiche la page HTML avec les données des entreprises."""
@@ -144,6 +178,33 @@ def home(request: Request, page: int = 1, limit: int = 50):
     }
 
     return templates.TemplateResponse(request, "index.html", context)
+
+
+@app.get("/naf_sections")
+def naf_sections_page(request: Request):
+    """Affiche la liste des sections NAF de niveau 2 et de leurs sous-sections."""
+    conn = get_db_connection()
+    naf_rows = conn.execute(
+        """
+        SELECT code, name
+        FROM naf_code
+        WHERE LENGTH(code) IN (2, 4)
+        ORDER BY code
+        """
+    ).fetchall()
+    conn.close()
+
+    sections = build_naf_sections_tree(naf_rows)
+
+    return templates.TemplateResponse(
+        request,
+        "naf_sections.html",
+        {
+            "request": request,
+            "sections": sections,
+            "total_sections": len(sections),
+        },
+    )
 
 
 @app.get("/api/companies")
