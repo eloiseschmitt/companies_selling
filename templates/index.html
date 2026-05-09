@@ -48,6 +48,22 @@
             font-size: 0.95em;
         }
 
+        .filter-info {
+            margin-top: 12px;
+            padding: 12px 14px;
+            background: #edf6ff;
+            border-left: 4px solid #3498db;
+            border-radius: 6px;
+            color: #1f2d3d;
+        }
+
+        .filter-info a {
+            color: #1d6fa5;
+            font-weight: 600;
+            text-decoration: none;
+            margin-left: 8px;
+        }
+
         .nav-link {
             display: inline-block;
             margin-top: 10px;
@@ -186,10 +202,19 @@
         </div>
 
         {% if companies %}
+        {% if selected_section %}
+        <div class="filter-info">
+            Filtre actif :
+            <strong>{{ selected_section }}</strong>
+            {% if selected_section_name %}{{ selected_section_name }}{% endif %}
+            <a href="/">retirer le filtre</a>
+        </div>
+        {% endif %}
+
         <div class="pagination">
             {% if page > 1 %}
-            <a href="/?page=1"><button>⬅️ Première</button></a>
-            <a href="/?page={{ page - 1 }}"><button>◀️ Précédent</button></a>
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>⬅️ Première</button></a>
+            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>◀️ Précédent</button></a>
             {% else %}
             <button disabled>⬅️ Première</button>
             <button disabled>◀️ Précédent</button>
@@ -197,8 +222,8 @@
 
             <span>Page {{ page }} sur {{ total_pages }}</span>
 
-            {% if page < total_pages %} <a href="/?page={{ page + 1 }}"><button>Suivant ▶️</button></a>
-                <a href="/?page={{ total_pages }}"><button>Dernière ⬅️</button></a>
+            {% if page < total_pages %} <a href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Suivant ▶️</button></a>
+                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Dernière ⬅️</button></a>
                 {% else %}
                 <button disabled>Suivant ▶️</button>
                 <button disabled>Dernière ⬅️</button>
@@ -242,8 +267,8 @@
 
         <div class="pagination">
             {% if page > 1 %}
-            <a href="/?page=1"><button>⬅️ Première</button></a>
-            <a href="/?page={{ page - 1 }}"><button>◀️ Précédent</button></a>
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>⬅️ Première</button></a>
+            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>◀️ Précédent</button></a>
             {% else %}
             <button disabled>⬅️ Première</button>
             <button disabled>◀️ Précédent</button>
@@ -251,8 +276,8 @@
 
             <span>Page {{ page }} sur {{ total_pages }}</span>
 
-            {% if page < total_pages %} <a href="/?page={{ page + 1 }}"><button>Suivant ▶️</button></a>
-                <a href="/?page={{ total_pages }}"><button>Dernière ⬅️</button></a>
+            {% if page < total_pages %} <a href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Suivant ▶️</button></a>
+                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Dernière ⬅️</button></a>
                 {% else %}
                 <button disabled>Suivant ▶️</button>
                 <button disabled>Dernière ⬅️</button>

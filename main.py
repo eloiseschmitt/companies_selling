@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 import sqlite3
@@ -115,20 +113,35 @@ def build_naf_sections_tree(naf_rows: list[sqlite3.Row]) -> list[dict]:
     return sections_level_2
 
 
+def build_section_filter_clause(section_code: str | None) -> tuple[str, list[str]]:
+    """Construit le filtre SQL pour une section NAF et ses descendants."""
+    if not section_code:
+        return "", []
+
+    normalized_code = section_code.strip()
+    if not normalized_code:
+        return "", []
+
+    return " WHERE activitePrincipaleEtablissement LIKE ?", [f"{normalized_code}%"]
+
+
 @app.get("/")
-def home(request: Request, page: int = 1, limit: int = 50):
+def home(request: Request, page: int = 1, limit: int = 50, section: str | None = None):
     """Affiche la page HTML avec les données des entreprises."""
     conn = get_db_connection()
-    total_count = conn.execute("SELECT COUNT(*) as count FROM companies").fetchone()[
-        "count"
-    ]
+    where_clause, where_params = build_section_filter_clause(section)
+    total_count = conn.execute(
+        f"SELECT COUNT(*) as count FROM companies{where_clause}",
+        where_params,
+    ).fetchone()["count"]
     offset = (page - 1) * limit
 
     companies = conn.execute(
-        """
+        f"""
         SELECT siret, nic, dateCreationEtablissement, 
                trancheEffectifsEtablissement, activitePrincipaleEtablissement
         FROM companies
+        {where_clause}
         ORDER BY SUBSTR(activitePrincipaleEtablissement, 1, 2),
                  SUBSTR(activitePrincipaleEtablissement, 1, 4),
                  activitePrincipaleEtablissement,
@@ -136,7 +149,7 @@ def home(request: Request, page: int = 1, limit: int = 50):
                  siret
         LIMIT ? OFFSET ?
     """,
-        (limit, offset),
+        [*where_params, limit, offset],
     ).fetchall()
 
     naf_codes = conn.execute(
@@ -167,6 +180,7 @@ def home(request: Request, page: int = 1, limit: int = 50):
 
     display_rows = build_display_rows(companies_list, code_to_name)
     total_pages = (total_count + limit - 1) // limit
+    selected_section_name = code_to_name.get(section, "") if section else ""
 
     context = {
         "request": request,
@@ -175,6 +189,8 @@ def home(request: Request, page: int = 1, limit: int = 50):
         "total_pages": total_pages,
         "total_count": total_count,
         "limit": limit,
+        "selected_section": section,
+        "selected_section_name": selected_section_name,
     }
 
     return templates.TemplateResponse(request, "index.html", context)

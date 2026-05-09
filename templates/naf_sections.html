@@ -79,6 +79,18 @@
             color: #1f2d3d;
         }
 
+        .section-link,
+        .child-link {
+            display: block;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .section-link:hover,
+        .child-link:hover {
+            text-decoration: underline;
+        }
+
         .section-code,
         .child-code {
             display: inline-block;
@@ -125,16 +137,20 @@
             {% for section in sections %}
             <section class="section-card">
                 <div class="section-header">
-                    <span class="section-code">{{ section.code }}</span>
-                    <span>{{ section.name }}</span>
+                    <a class="section-link" href="/?section={{ section.code }}">
+                        <span class="section-code">{{ section.code }}</span>
+                        <span>{{ section.name }}</span>
+                    </a>
                 </div>
 
                 {% if section.children %}
                 <ul class="child-list">
                     {% for child in section.children %}
                     <li>
-                        <span class="child-code">{{ child.code }}</span>
-                        <span>{{ child.name }}</span>
+                        <a class="child-link" href="/?section={{ child.code }}">
+                            <span class="child-code">{{ child.code }}</span>
+                            <span>{{ child.name }}</span>
+                        </a>
                     </li>
                     {% endfor %}
                 </ul>
