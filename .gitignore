@@ -1,0 +1,9 @@
+.env
+.idea
+.venv
+StockEtablissement_utf8.csv
+StockEtablissement_utf8.zip
+int_courts_naf_rev_2.xls
+companies.db
+entreprises.csv
+result.csv
