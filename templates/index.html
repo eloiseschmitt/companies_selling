@@ -116,6 +116,7 @@
 
         tr.section-row:hover {
             background: inherit;
+            cursor: pointer;
         }
 
         tr.section-level-2 td,
@@ -139,6 +140,13 @@
             min-width: 56px;
             margin-right: 8px;
             font-family: monospace;
+        }
+
+        .section-toggle {
+            display: inline-block;
+            width: 18px;
+            margin-right: 8px;
+            font-weight: 700;
         }
 
         .no-data {
@@ -196,8 +204,9 @@
             <tbody>
                 {% for company in companies %}
                 {% if company.row_type == "section" %}
-                <tr class="section-row section-level-{{ company.section_level }}">
+                <tr class="section-row section-level-{{ company.section_level }}" data-section-level="{{ company.section_level }}">
                     <td colspan="6">
+                        <span class="section-toggle">▾</span>
                         <span class="section-code">{{ company.section_code }}</span>
                         <span>{{ company.section_name }}</span>
                     </td>
@@ -241,6 +250,57 @@
         </div>
         {% endif %}
     </div>
+
+    <script>
+        function updateSectionVisibility() {
+            const rows = Array.from(document.querySelectorAll("tbody tr"));
+            const collapsedLevels = {};
+
+            rows.forEach((row) => {
+                if (row.classList.contains("section-row")) {
+                    const level = Number(row.dataset.sectionLevel);
+                    const isHiddenByParent = Object.entries(collapsedLevels).some(
+                        ([parentLevel, isCollapsed]) => isCollapsed && Number(parentLevel) < level
+                    );
+
+                    row.style.display = isHiddenByParent ? "none" : "";
+
+                    if (row.dataset.collapsed === "true") {
+                        collapsedLevels[level] = true;
+                    } else {
+                        collapsedLevels[level] = false;
+                    }
+
+                    Object.keys(collapsedLevels).forEach((parentLevel) => {
+                        if (Number(parentLevel) > level) {
+                            delete collapsedLevels[parentLevel];
+                        }
+                    });
+
+                    const toggle = row.querySelector(".section-toggle");
+                    if (toggle) {
+                        toggle.textContent = row.dataset.collapsed === "true" ? "▸" : "▾";
+                    }
+                    return;
+                }
+
+                const isHiddenBySection = Object.values(collapsedLevels).some(Boolean);
+                row.style.display = isHiddenBySection ? "none" : "";
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.querySelectorAll(".section-row").forEach((row) => {
+                row.dataset.collapsed = "false";
+                row.addEventListener("click", () => {
+                    row.dataset.collapsed = row.dataset.collapsed === "true" ? "false" : "true";
+                    updateSectionVisibility();
+                });
+            });
+
+            updateSectionVisibility();
+        });
+    </script>
 </body>
 
 </html>
