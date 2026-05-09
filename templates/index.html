@@ -213,8 +213,10 @@
 
         <div class="pagination">
             {% if page > 1 %}
-            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>⬅️ Première</button></a>
-            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>◀️ Précédent</button></a>
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>⬅️
+                    Première</button></a>
+            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>◀️
+                    Précédent</button></a>
             {% else %}
             <button disabled>⬅️ Première</button>
             <button disabled>◀️ Précédent</button>
@@ -222,8 +224,11 @@
 
             <span>Page {{ page }} sur {{ total_pages }}</span>
 
-            {% if page < total_pages %} <a href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Suivant ▶️</button></a>
-                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Dernière ⬅️</button></a>
+            {% if page < total_pages %} <a
+                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}">
+                <button>Suivant ▶️</button></a>
+                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Dernière
+                        ⬅️</button></a>
                 {% else %}
                 <button disabled>Suivant ▶️</button>
                 <button disabled>Dernière ⬅️</button>
@@ -239,13 +244,15 @@
                     <th>Nombre de salariés</th>
                     <th>Code NAF</th>
                     <th>Activité principale</th>
+                    <th>Score</th>
                 </tr>
             </thead>
             <tbody>
                 {% for company in companies %}
                 {% if company.row_type == "section" %}
-                <tr class="section-row section-level-{{ company.section_level }}" data-section-level="{{ company.section_level }}">
-                    <td colspan="6">
+                <tr class="section-row section-level-{{ company.section_level }}"
+                    data-section-level="{{ company.section_level }}">
+                    <td colspan="7">
                         <span class="section-toggle">▾</span>
                         <span class="section-code">{{ company.section_code }}</span>
                         <span>{{ company.section_name }}</span>
@@ -259,6 +266,7 @@
                     <td>{{ company.trancheEffectifsEtablissement }}</td>
                     <td>{{ company.activitePrincipaleEtablissement }}</td>
                     <td>{{ company.libelle }}</td>
+                    <td>{{ company.score }}</td>
                 </tr>
                 {% endif %}
                 {% endfor %}
@@ -267,8 +275,10 @@
 
         <div class="pagination">
             {% if page > 1 %}
-            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>⬅️ Première</button></a>
-            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>◀️ Précédent</button></a>
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>⬅️
+                    Première</button></a>
+            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>◀️
+                    Précédent</button></a>
             {% else %}
             <button disabled>⬅️ Première</button>
             <button disabled>◀️ Précédent</button>
@@ -276,8 +286,11 @@
 
             <span>Page {{ page }} sur {{ total_pages }}</span>
 
-            {% if page < total_pages %} <a href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Suivant ▶️</button></a>
-                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Dernière ⬅️</button></a>
+            {% if page < total_pages %} <a
+                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}">
+                <button>Suivant ▶️</button></a>
+                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}"><button>Dernière
+                        ⬅️</button></a>
                 {% else %}
                 <button disabled>Suivant ▶️</button>
                 <button disabled>Dernière ⬅️</button>

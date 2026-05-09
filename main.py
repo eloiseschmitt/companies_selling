@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 import sqlite3
 import os
+from datetime import date, datetime
 from constants import MAPPING_HEADCOUNT
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -125,6 +126,43 @@ def build_section_filter_clause(section_code: str | None) -> tuple[str, list[str
     return " WHERE activitePrincipaleEtablissement LIKE ?", [f"{normalized_code}%"]
 
 
+def company_is_older_than_30_years(creation_date: str | None) -> bool:
+    """Retourne True si la date de création a plus de 30 ans."""
+    if not creation_date:
+        return False
+
+    try:
+        parsed_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+
+    today = date.today()
+    age = today.year - parsed_date.year - (
+        (today.month, today.day) < (parsed_date.month, parsed_date.day)
+    )
+    return age > 30
+
+
+def company_headcount_is_between_6_and_19(headcount_code: str | None) -> bool:
+    """Retourne True si le nombre de salariés est > 5 et < 20."""
+    return headcount_code in {"03", "11"}
+
+
+def compute_company_score(company: dict) -> int:
+    """Calcule le score métier affiché dans le tableau."""
+    score = 0
+
+    if company_is_older_than_30_years(company.get("dateCreationEtablissement")):
+        score += 3
+
+    if company_headcount_is_between_6_and_19(
+        company.get("trancheEffectifsEtablissement")
+    ):
+        score += 2
+
+    return score
+
+
 @app.get("/")
 def home(request: Request, page: int = 1, limit: int = 50, section: str | None = None):
     """Affiche la page HTML avec les données des entreprises."""
@@ -163,6 +201,7 @@ def home(request: Request, page: int = 1, limit: int = 50, section: str | None =
     companies_list = [
         {
             **dict(row),
+            "score": compute_company_score(dict(row)),
             "trancheEffectifsEtablissement": MAPPING_HEADCOUNT.get(
                 dict(row).get("trancheEffectifsEtablissement"),
                 dict(row).get("trancheEffectifsEtablissement"),
