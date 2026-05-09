@@ -1,12 +1,9 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import sqlite3
 import os
-from typing import List, Dict
+from constants import MAPPING_HEADCOUNT
 
-# Obtenir le chemin absolu du répertoire courant
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = FastAPI()
@@ -27,15 +24,12 @@ def home(request: Request, page: int = 1, limit: int = 50):
     """Affiche la page HTML avec les données des entreprises."""
     conn = get_db_connection()
 
-    # Récupérer le nombre total d'enregistrements
     total_count = conn.execute("SELECT COUNT(*) as count FROM companies").fetchone()[
         "count"
     ]
 
-    # Calculer les offsets pour la pagination
     offset = (page - 1) * limit
 
-    # Récupérer les données paginées
     companies = conn.execute(
         """
         SELECT siret, nic, dateCreationEtablissement, 
@@ -55,8 +49,15 @@ def home(request: Request, page: int = 1, limit: int = 50):
 
     conn.close()
 
-    # Convertir les Row en dict pour le template
-    companies_list = [dict(row) for row in companies]
+    companies_list = [
+        {
+            **dict(row),
+            "trancheEffectifsEtablissement": MAPPING_HEADCOUNT.get(
+                dict(row).get("trancheEffectifsEtablissement"),
+                dict(row).get("trancheEffectifsEtablissement"),
+            ),
+        } for row in companies
+    ]
     naf_code_list = [dict(row) for row in naf_codes]
 
     code_to_name = {item["code"]: item["name"] for item in naf_code_list}
