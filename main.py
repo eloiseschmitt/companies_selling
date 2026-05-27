@@ -1,13 +1,14 @@
-from fastapi import FastAPI, Request
+from fastapi import Request
 from fastapi.templating import Jinja2Templates
 import sqlite3
 import os
 from datetime import date, datetime
 from constants import MAPPING_HEADCOUNT
+from app import app
+import admin
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-app = FastAPI()
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
