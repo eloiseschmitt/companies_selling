@@ -1,0 +1,26 @@
+{% extends "sqladmin/filters/base_filter.html" %}
+
+{% block filter_title_classes %}fw-bold text-truncate fs-3 mb-2{% endblock %}
+
+{% block filter_body %}
+  {% set selected = filter.selected_values(request) %}
+  {% if selected %}
+  <div class="mb-2">
+    <a href="{{ filter.clear_url(request) }}" class="text-decoration-none">
+      Clear filter
+    </a>
+  </div>
+  {% endif %}
+  <div style="max-height: 360px; overflow-y: auto;">
+    {% for lookup in filter.lookups(request, model_view.model, model_view._run_arbitrary_query) %}
+    {% set is_selected = lookup[0] in selected %}
+    <a href="{{ filter.toggle_url(request, lookup[0]) }}"
+       class="d-flex align-items-center gap-2 text-decoration-none text-truncate px-2 py-1{% if is_selected %} bg-secondary-lt rounded{% endif %}">
+      <input class="form-check-input m-0" type="checkbox" {% if is_selected %}checked{% endif %}>
+      <span class="text-truncate{% if is_selected %} fw-bold text-dark{% endif %}">
+        {{ lookup[1] }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+{% endblock %}

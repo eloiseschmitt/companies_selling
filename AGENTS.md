@@ -92,3 +92,6 @@ Avoid:
 - vague messages
 - overly long titles
 - generic commits like "update code"
+
+# README.md
+Feel free to update this file with any relevant information.
