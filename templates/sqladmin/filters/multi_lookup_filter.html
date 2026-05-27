@@ -14,13 +14,18 @@
   <div style="max-height: 360px; overflow-y: auto;">
     {% for lookup in filter.lookups(request, model_view.model, model_view._run_arbitrary_query) %}
     {% set is_selected = lookup[0] in selected %}
-    <a href="{{ filter.toggle_url(request, lookup[0]) }}"
-       class="d-flex align-items-center gap-2 text-decoration-none text-truncate px-2 py-1{% if is_selected %} bg-secondary-lt rounded{% endif %}">
-      <input class="form-check-input m-0" type="checkbox" {% if is_selected %}checked{% endif %}>
-      <span class="text-truncate{% if is_selected %} fw-bold text-dark{% endif %}">
+    {% set toggle_url = filter.toggle_url(request, lookup[0]) %}
+    <div class="d-flex align-items-center gap-2 px-2 py-1{% if is_selected %} bg-secondary-lt rounded{% endif %}">
+      <input class="form-check-input m-0"
+             type="checkbox"
+             data-url="{{ toggle_url }}"
+             onchange="window.location.href = this.dataset.url"
+             {% if is_selected %}checked{% endif %}>
+      <a href="{{ toggle_url }}"
+         class="text-decoration-none text-truncate{% if is_selected %} fw-bold text-dark{% endif %}">
         {{ lookup[1] }}
-      </span>
-    </a>
+      </a>
+    </div>
     {% endfor %}
   </div>
 {% endblock %}
