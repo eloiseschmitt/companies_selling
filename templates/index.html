@@ -297,9 +297,9 @@
                 {% endif %}
                 <input type="hidden" name="sort_score" value="{{ sort_score }}">
                 <div class="filter-field">
-                    <label for="naf_code">Filtrer par code NAF</label>
+                    <label for="naf_code">Filtrer par codes NAF</label>
                     <input id="naf_code" name="naf_code" type="text" value="{{ selected_naf_code }}"
-                        placeholder="Ex. 68.20B">
+                        placeholder="Ex. 68.20B, 81.10Z">
                 </div>
                 <button class="filter-button" type="submit">Filtrer</button>
             </form>
@@ -307,7 +307,7 @@
             {% if selected_naf_code %}
             <a class="clear-filter-link"
                 href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}">retirer
-                le code NAF</a>
+                les codes NAF</a>
             {% endif %}
         </div>
 
@@ -321,10 +321,12 @@
                 la section</a>
             {% endif %}
             {% if selected_naf_code %}
-            <strong>{{ selected_naf_code }}</strong>
-            {% if selected_naf_code_name %}{{ selected_naf_code_name }}{% endif %}
+            {% for naf_code in selected_naf_codes %}
+            <strong>{{ naf_code.code }}</strong>
+            {% if naf_code.name %}{{ naf_code.name }}{% endif %}{% if not loop.last %}, {% endif %}
+            {% endfor %}
             <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}">retirer
-                le code NAF</a>
+                les codes NAF</a>
             {% endif %}
         </div>
         {% endif %}

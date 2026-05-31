@@ -2,6 +2,7 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 import sqlite3
 import os
+import re
 from datetime import date, datetime
 from constants import MAPPING_HEADCOUNT
 from app import app
@@ -125,9 +126,26 @@ def normalize_naf_code(code: str | None) -> str:
     return f"{compact_code[:2]}.{compact_code[2:]}"
 
 
+def parse_naf_codes(codes: str | None) -> list[str]:
+    """Retourne les codes NAF normalisés depuis une saisie libre."""
+    if not codes:
+        return []
+
+    normalized_codes = []
+    seen_codes = set()
+    for raw_code in re.split(r"[\s,;]+", codes):
+        normalized_code = normalize_naf_code(raw_code)
+        if not normalized_code or normalized_code in seen_codes:
+            continue
+        normalized_codes.append(normalized_code)
+        seen_codes.add(normalized_code)
+
+    return normalized_codes
+
+
 def build_company_filter_clause(
     section_code: str | None,
-    naf_code: str | None,
+    naf_codes: list[str],
 ) -> tuple[str, list[str]]:
     """Construit les filtres SQL applicables à la liste des entreprises."""
     clauses = []
@@ -138,10 +156,10 @@ def build_company_filter_clause(
         clauses.append("activitePrincipaleEtablissement LIKE ?")
         params.append(f"{normalized_section}%")
 
-    normalized_naf_code = normalize_naf_code(naf_code)
-    if normalized_naf_code:
-        clauses.append("activitePrincipaleEtablissement = ?")
-        params.append(normalized_naf_code)
+    if naf_codes:
+        placeholders = ", ".join("?" for _ in naf_codes)
+        clauses.append(f"activitePrincipaleEtablissement IN ({placeholders})")
+        params.extend(naf_codes)
 
     if not clauses:
         return "", []
@@ -226,10 +244,11 @@ def home(
     """Affiche la page HTML avec les données des entreprises."""
     conn = get_db_connection()
     selected_section = normalize_naf_code(section)
-    selected_naf_code = normalize_naf_code(naf_code)
+    selected_naf_codes = parse_naf_codes(naf_code)
+    selected_naf_codes_query = ",".join(selected_naf_codes)
     where_clause, where_params = build_company_filter_clause(
         selected_section,
-        selected_naf_code,
+        selected_naf_codes,
     )
     score_sort_direction = get_score_sort_direction(sort_score)
     score_sql = get_company_score_sql()
@@ -286,9 +305,10 @@ def home(
     display_rows = build_display_rows(companies_list, code_to_name)
     total_pages = (total_count + limit - 1) // limit
     selected_section_name = code_to_name.get(selected_section, "") if selected_section else ""
-    selected_naf_code_name = (
-        code_to_name.get(selected_naf_code, "") if selected_naf_code else ""
-    )
+    selected_naf_code_names = [
+        {"code": code, "name": code_to_name.get(code, "")}
+        for code in selected_naf_codes
+    ]
 
     context = {
         "request": request,
@@ -299,8 +319,8 @@ def home(
         "limit": limit,
         "selected_section": selected_section,
         "selected_section_name": selected_section_name,
-        "selected_naf_code": selected_naf_code,
-        "selected_naf_code_name": selected_naf_code_name,
+        "selected_naf_code": selected_naf_codes_query,
+        "selected_naf_codes": selected_naf_code_names,
         "sort_score": sort_score or "desc",
         "next_sort_score": "asc" if (sort_score or "desc") == "desc" else "desc",
     }
