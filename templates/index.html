@@ -369,6 +369,9 @@
                 <tr>
                     <th>SIRET</th>
                     <th>NIC</th>
+                    <th>Dénomination légale</th>
+                    <th>Prénom</th>
+                    <th>Nom</th>
                     <th>Date création établissement</th>
                     <th>Nombre de salariés</th>
                     <th>Code NAF</th>
@@ -387,7 +390,7 @@
                 {% if company.row_type == "section" %}
                 <tr class="section-row section-level-{{ company.section_level }}"
                     data-section-level="{{ company.section_level }}">
-                    <td colspan="7">
+                    <td colspan="10">
                         <span class="section-toggle">▾</span>
                         <span class="section-code">{{ company.section_code }}</span>
                         <span>{{ company.section_name }}</span>
@@ -397,6 +400,9 @@
                 <tr>
                     <td><strong>{{ company.siret }}</strong></td>
                     <td>{{ company.nic }}</td>
+                    <td>{{ company.denomination_legale }}</td>
+                    <td>{{ company.prenom }}</td>
+                    <td>{{ company.nom }}</td>
                     <td>{{ company.dateCreationEtablissement }}</td>
                     <td>{{ company.trancheEffectifsEtablissement }}</td>
                     <td>{{ company.activitePrincipaleEtablissement }}</td>

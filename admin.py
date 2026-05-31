@@ -22,6 +22,9 @@ class Company(Base):
     dateCreationEtablissement: Mapped[str]
     trancheEffectifsEtablissement: Mapped[str]
     activitePrincipaleEtablissement: Mapped[str]
+    denomination_legale: Mapped[str]
+    prenom: Mapped[str]
+    nom: Mapped[str]
 
 
 class MultiActivityCodeFilter:
@@ -80,17 +83,26 @@ class CompanyAdmin(ModelView, model=Company):
     column_list = [
         Company.siret,
         Company.nic,
+        Company.denomination_legale,
+        Company.prenom,
+        Company.nom,
         Company.dateCreationEtablissement,
         Company.trancheEffectifsEtablissement,
         Company.activitePrincipaleEtablissement,
     ]
     column_searchable_list = [
         Company.siret,
+        Company.denomination_legale,
+        Company.prenom,
+        Company.nom,
         Company.activitePrincipaleEtablissement,
     ]
     column_filters = [MultiActivityCodeFilter()]
     column_sortable_list = [
         Company.siret,
+        Company.denomination_legale,
+        Company.prenom,
+        Company.nom,
         Company.dateCreationEtablissement,
         Company.trancheEffectifsEtablissement,
         Company.activitePrincipaleEtablissement,
@@ -98,6 +110,9 @@ class CompanyAdmin(ModelView, model=Company):
     column_labels = {
         Company.siret: "SIRET",
         Company.nic: "NIC",
+        Company.denomination_legale: "Dénomination légale",
+        Company.prenom: "Prénom",
+        Company.nom: "Nom",
         Company.dateCreationEtablissement: "Date de création",
         Company.trancheEffectifsEtablissement: "Tranche d'effectifs",
         Company.activitePrincipaleEtablissement: "Activité principale",

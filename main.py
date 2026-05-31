@@ -262,6 +262,7 @@ def home(
         f"""
         SELECT siret, nic, dateCreationEtablissement, 
                trancheEffectifsEtablissement, activitePrincipaleEtablissement,
+               denomination_legale, prenom, nom,
                {score_sql} AS score
         FROM companies
         {where_clause}
