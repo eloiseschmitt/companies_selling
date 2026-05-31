@@ -115,16 +115,38 @@ def build_naf_sections_tree(naf_rows: list[sqlite3.Row]) -> list[dict]:
     return sections_level_2
 
 
-def build_section_filter_clause(section_code: str | None) -> tuple[str, list[str]]:
-    """Construit le filtre SQL pour une section NAF et ses descendants."""
-    if not section_code:
+def normalize_naf_code(code: str | None) -> str:
+    """Normalise un code NAF fourni par l'utilisateur."""
+    if not code:
+        return ""
+    compact_code = code.strip().replace(".", "").upper()
+    if len(compact_code) <= 2:
+        return compact_code
+    return f"{compact_code[:2]}.{compact_code[2:]}"
+
+
+def build_company_filter_clause(
+    section_code: str | None,
+    naf_code: str | None,
+) -> tuple[str, list[str]]:
+    """Construit les filtres SQL applicables à la liste des entreprises."""
+    clauses = []
+    params = []
+
+    normalized_section = normalize_naf_code(section_code)
+    if normalized_section:
+        clauses.append("activitePrincipaleEtablissement LIKE ?")
+        params.append(f"{normalized_section}%")
+
+    normalized_naf_code = normalize_naf_code(naf_code)
+    if normalized_naf_code:
+        clauses.append("activitePrincipaleEtablissement = ?")
+        params.append(normalized_naf_code)
+
+    if not clauses:
         return "", []
 
-    normalized_code = section_code.strip()
-    if not normalized_code:
-        return "", []
-
-    return " WHERE activitePrincipaleEtablissement LIKE ?", [f"{normalized_code}%"]
+    return f" WHERE {' AND '.join(clauses)}", params
 
 
 def get_score_sort_direction(sort_score: str | None) -> str:
@@ -198,11 +220,17 @@ def home(
     page: int = 1,
     limit: int = 50,
     section: str | None = None,
+    naf_code: str | None = None,
     sort_score: str | None = None,
 ):
     """Affiche la page HTML avec les données des entreprises."""
     conn = get_db_connection()
-    where_clause, where_params = build_section_filter_clause(section)
+    selected_section = normalize_naf_code(section)
+    selected_naf_code = normalize_naf_code(naf_code)
+    where_clause, where_params = build_company_filter_clause(
+        selected_section,
+        selected_naf_code,
+    )
     score_sort_direction = get_score_sort_direction(sort_score)
     score_sql = get_company_score_sql()
     total_count = conn.execute(
@@ -257,7 +285,10 @@ def home(
 
     display_rows = build_display_rows(companies_list, code_to_name)
     total_pages = (total_count + limit - 1) // limit
-    selected_section_name = code_to_name.get(section, "") if section else ""
+    selected_section_name = code_to_name.get(selected_section, "") if selected_section else ""
+    selected_naf_code_name = (
+        code_to_name.get(selected_naf_code, "") if selected_naf_code else ""
+    )
 
     context = {
         "request": request,
@@ -266,8 +297,10 @@ def home(
         "total_pages": total_pages,
         "total_count": total_count,
         "limit": limit,
-        "selected_section": section,
+        "selected_section": selected_section,
         "selected_section_name": selected_section_name,
+        "selected_naf_code": selected_naf_code,
+        "selected_naf_code_name": selected_naf_code_name,
         "sort_score": sort_score or "desc",
         "next_sort_score": "asc" if (sort_score or "desc") == "desc" else "desc",
     }

@@ -64,6 +64,69 @@
             margin-left: 8px;
         }
 
+        .filters {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 18px 0;
+            padding: 14px;
+            background: #f8fafc;
+            border: 1px solid #d9e2ec;
+            border-radius: 6px;
+        }
+
+        .filter-form {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .filter-field label {
+            font-weight: 600;
+            color: #334155;
+            font-size: 0.9em;
+        }
+
+        .filter-field input {
+            min-width: 180px;
+            padding: 9px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+
+        .filter-button,
+        .clear-filter-link {
+            display: inline-block;
+            padding: 9px 14px;
+            border-radius: 4px;
+            font-size: 0.95em;
+            text-decoration: none;
+        }
+
+        .filter-button {
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .filter-button:hover {
+            background: #2980b9;
+        }
+
+        .clear-filter-link {
+            color: #1d6fa5;
+            font-weight: 600;
+        }
+
         .score-info {
             margin-top: 12px;
             padding: 14px 16px;
@@ -227,6 +290,45 @@
             </div>
         </div>
 
+        <div class="filters">
+            <form class="filter-form" method="get" action="/">
+                {% if selected_section %}
+                <input type="hidden" name="section" value="{{ selected_section }}">
+                {% endif %}
+                <input type="hidden" name="sort_score" value="{{ sort_score }}">
+                <div class="filter-field">
+                    <label for="naf_code">Filtrer par code NAF</label>
+                    <input id="naf_code" name="naf_code" type="text" value="{{ selected_naf_code }}"
+                        placeholder="Ex. 68.20B">
+                </div>
+                <button class="filter-button" type="submit">Filtrer</button>
+            </form>
+
+            {% if selected_naf_code %}
+            <a class="clear-filter-link"
+                href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}">retirer
+                le code NAF</a>
+            {% endif %}
+        </div>
+
+        {% if selected_section or selected_naf_code %}
+        <div class="filter-info">
+            Filtres actifs :
+            {% if selected_section %}
+            <strong>{{ selected_section }}</strong>
+            {% if selected_section_name %}{{ selected_section_name }}{% endif %}
+            <a href="/?page=1{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}">retirer
+                la section</a>
+            {% endif %}
+            {% if selected_naf_code %}
+            <strong>{{ selected_naf_code }}</strong>
+            {% if selected_naf_code_name %}{{ selected_naf_code_name }}{% endif %}
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}">retirer
+                le code NAF</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% if companies %}
         <div class="score-info">
             <strong>Calcul du score :</strong>
@@ -234,20 +336,11 @@
             +2 si le nombre de salariés est supérieur à 5 et inférieur à 20.
         </div>
 
-        {% if selected_section %}
-        <div class="filter-info">
-            Filtre actif :
-            <strong>{{ selected_section }}</strong>
-            {% if selected_section_name %}{{ selected_section_name }}{% endif %}
-            <a href="/?sort_score={{ sort_score }}">retirer le filtre</a>
-        </div>
-        {% endif %}
-
         <div class="pagination">
             {% if page > 1 %}
-            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>⬅️
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}"><button>⬅️
                     Première</button></a>
-            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>◀️
+            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}"><button>◀️
                     Précédent</button></a>
             {% else %}
             <button disabled>⬅️ Première</button>
@@ -257,9 +350,9 @@
             <span>Page {{ page }} sur {{ total_pages }}</span>
 
             {% if page < total_pages %} <a
-                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}">
+                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}">
                 <button>Suivant ▶️</button></a>
-                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>Dernière
+                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}"><button>Dernière
                         ⬅️</button></a>
                 {% else %}
                 <button disabled>Suivant ▶️</button>
@@ -278,7 +371,7 @@
                     <th>Activité principale</th>
                     <th>
                         <a class="sortable-link"
-                            href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ next_sort_score }}">
+                            href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ next_sort_score }}">
                             <span>Score</span>
                             <span>{% if sort_score == "asc" %}↑{% else %}↓{% endif %}</span>
                         </a>
@@ -313,9 +406,9 @@
 
         <div class="pagination">
             {% if page > 1 %}
-            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>⬅️
+            <a href="/?page=1{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}"><button>⬅️
                     Première</button></a>
-            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>◀️
+            <a href="/?page={{ page - 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}"><button>◀️
                     Précédent</button></a>
             {% else %}
             <button disabled>⬅️ Première</button>
@@ -325,9 +418,9 @@
             <span>Page {{ page }} sur {{ total_pages }}</span>
 
             {% if page < total_pages %} <a
-                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}">
+                href="/?page={{ page + 1 }}{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}">
                 <button>Suivant ▶️</button></a>
-                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}&sort_score={{ sort_score }}"><button>Dernière
+                <a href="/?page={{ total_pages }}{% if selected_section %}&section={{ selected_section }}{% endif %}{% if selected_naf_code %}&naf_code={{ selected_naf_code }}{% endif %}&sort_score={{ sort_score }}"><button>Dernière
                         ⬅️</button></a>
                 {% else %}
                 <button disabled>Suivant ▶️</button>
