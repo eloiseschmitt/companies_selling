@@ -53,6 +53,24 @@ Colonnes utilisées :
 - `trancheEffectifsEtablissement`
 - `activitePrincipaleEtablissement`
 
+### Table `financial_documents`
+
+Colonnes utilisées :
+
+- `id`
+- `siren`
+- `siret`
+- `closing_date`
+- `filing_date`
+- `document_path`
+- `document_type`
+- `source`
+- `created_at`
+- `updated_at`
+
+La table possède des index sur `siren`, `siret` et `closing_date`.
+Une contrainte d'unicité sur `siren`, `closing_date` et `document_path` évite les doublons.
+
 ### Table `naf_code`
 
 Colonnes utilisées :
@@ -120,6 +138,7 @@ Exemples :
 - `main.py` : application FastAPI principale
 - `populate_naf_db.py` : alimentation de la table `naf_code`
 - `retrieve_siren_companies.py` : import des entreprises dans `companies.db`
+- `init_financial_documents.py` : création de la table `financial_documents`
 - `generate_companies_html.py` : génération de `companies.html` en statique
 
 ## Fichiers importants

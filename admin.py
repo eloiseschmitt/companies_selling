@@ -1,5 +1,5 @@
 from sqladmin import Admin, ModelView
-from sqlalchemy import create_engine
+from sqlalchemy import Index, UniqueConstraint, create_engine
 from sqlalchemy.sql.expression import Select, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from starlette.requests import Request
@@ -25,6 +25,32 @@ class Company(Base):
     denomination_legale: Mapped[str]
     prenom: Mapped[str]
     nom: Mapped[str]
+
+
+class FinancialDocument(Base):
+    __tablename__ = "financial_documents"
+    __table_args__ = (
+        Index("idx_financial_documents_siren", "siren"),
+        Index("idx_financial_documents_siret", "siret"),
+        Index("idx_financial_documents_closing_date", "closing_date"),
+        UniqueConstraint(
+            "siren",
+            "closing_date",
+            "document_path",
+            name="uq_financial_documents_siren_closing_date_document_path",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    siren: Mapped[str]
+    siret: Mapped[str | None]
+    closing_date: Mapped[str]
+    filing_date: Mapped[str | None]
+    document_path: Mapped[str]
+    document_type: Mapped[str | None]
+    source: Mapped[str | None]
+    created_at: Mapped[str]
+    updated_at: Mapped[str]
 
 
 class MultiActivityCodeFilter:
@@ -124,3 +150,52 @@ class CompanyAdmin(ModelView, model=Company):
 
 
 admin.add_view(CompanyAdmin)
+
+
+class FinancialDocumentAdmin(ModelView, model=FinancialDocument):
+    column_list = [
+        FinancialDocument.id,
+        FinancialDocument.siren,
+        FinancialDocument.siret,
+        FinancialDocument.closing_date,
+        FinancialDocument.filing_date,
+        FinancialDocument.document_type,
+        FinancialDocument.source,
+        FinancialDocument.document_path,
+        FinancialDocument.created_at,
+        FinancialDocument.updated_at,
+    ]
+    column_searchable_list = [
+        FinancialDocument.siren,
+        FinancialDocument.siret,
+        FinancialDocument.document_path,
+        FinancialDocument.document_type,
+        FinancialDocument.source,
+    ]
+    column_sortable_list = [
+        FinancialDocument.id,
+        FinancialDocument.siren,
+        FinancialDocument.siret,
+        FinancialDocument.closing_date,
+        FinancialDocument.filing_date,
+        FinancialDocument.document_type,
+        FinancialDocument.source,
+        FinancialDocument.created_at,
+        FinancialDocument.updated_at,
+    ]
+    column_labels = {
+        FinancialDocument.id: "ID",
+        FinancialDocument.siren: "SIREN",
+        FinancialDocument.siret: "SIRET",
+        FinancialDocument.closing_date: "Date de clôture",
+        FinancialDocument.filing_date: "Date de dépôt",
+        FinancialDocument.document_path: "Chemin du document",
+        FinancialDocument.document_type: "Type de document",
+        FinancialDocument.source: "Source",
+        FinancialDocument.created_at: "Créé le",
+        FinancialDocument.updated_at: "Mis à jour le",
+    }
+    name_plural = "Financial documents"
+
+
+admin.add_view(FinancialDocumentAdmin)
