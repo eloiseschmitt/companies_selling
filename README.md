@@ -71,6 +71,49 @@ Colonnes utilisées :
 La table possède des index sur `siren`, `siret` et `closing_date`.
 Une contrainte d'unicité sur `siren`, `closing_date` et `document_path` évite les doublons.
 
+### Import des documents financiers
+
+La table `financial_documents` stocke les métadonnées des documents financiers disponibles sur le SFTP INPI pour les entreprises déjà connues du projet. Elle ne stocke pas le contenu des PDF ou XML.
+
+Variables d'environnement nécessaires :
+
+- `SFTP_HOST`
+- `SFTP_USER`
+- `SFTP_PASSWORD`
+
+Lancer l'import :
+
+```bash
+python import_financial_documents.py --remote-path .
+```
+
+Options utiles :
+
+```bash
+python import_financial_documents.py --remote-path . --dry-run
+python import_financial_documents.py --remote-path . --recursive --max-depth 2
+```
+
+Données importées quand elles sont disponibles dans un index ou dans le chemin du fichier :
+
+- `siren`
+- `siret`
+- `closing_date`
+- `filing_date`
+- `document_path`
+- `document_type`
+- `source`
+
+L'import ne conserve que les documents dont le SIREN correspond à une entreprise déjà présente dans `companies`. Cette règle évite de remplir la base avec des documents hors périmètre et garde `financial_documents` alignée avec la sélection d'entreprises existante.
+
+Le script est relançable : la contrainte d'unicité sur `siren`, `closing_date` et `document_path` empêche les doublons. Si une ligne existe déjà, les champs `siret`, `filing_date`, `document_type`, `source` et `updated_at` peuvent être mis à jour.
+
+Limites connues :
+
+- les comptes confidentiels peuvent être absents ;
+- certaines entreprises peuvent ne pas avoir de données disponibles ;
+- le chiffre d'affaires n'est pas toujours directement présent dans les métadonnées importées.
+
 ### Table `naf_code`
 
 Colonnes utilisées :
