@@ -254,6 +254,22 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         self.assertEqual(2, stats.years_inspected)
         self.assertGreater(stats.files_examined, 0)
 
+    def test_finds_latest_pdf_for_siren_in_requested_year(self) -> None:
+        fake_sftp = FakeSFTPClient(make_targeted_entries())
+
+        selected_path, stats = importer.find_latest_ca_pdf_for_siren(
+            fake_sftp,
+            "123456789",
+            year="2024",
+        )
+
+        self.assertEqual(
+            "Bilans_PDF/2024/12/31/CA_123456789_7401_2012B00001_2026_K99999/"
+            "CA_123456789_7401_2012B00001_2026_K99999.pdf",
+            selected_path,
+        )
+        self.assertEqual(1, stats.years_inspected)
+
     def test_returns_none_when_no_pdf_exists_for_siren(self) -> None:
         fake_sftp = FakeSFTPClient(make_targeted_entries())
 
@@ -340,6 +356,36 @@ class FinancialDocumentsImportTest(unittest.TestCase):
                 importer.import_financial_document_for_siren("123456789")
 
         from_environment.assert_not_called()
+
+    def test_cli_passes_year_to_targeted_siren_import(self) -> None:
+        summary = {
+            "siren": "123456789",
+            "document_path": "Bilans_PDF/2021/file.pdf",
+            "closing_date": "2021",
+            "revenue": None,
+            "status": "inserted",
+            "years_inspected": 1,
+            "files_examined": 1,
+            "search_duration_seconds": 0.0,
+        }
+
+        with patch(
+            "sys.argv",
+            [
+                "import_financial_documents.py",
+                "--siren",
+                "123456789",
+                "--year",
+                "2021",
+            ],
+        ), patch.object(
+            importer,
+            "import_financial_document_for_siren",
+            return_value=summary,
+        ) as import_for_siren, patch("builtins.print"):
+            importer.main()
+
+        import_for_siren.assert_called_once_with("123456789", year="2021")
 
 
 if __name__ == "__main__":

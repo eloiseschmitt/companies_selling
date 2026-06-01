@@ -398,14 +398,29 @@ def select_latest_ca_pdf(paths: list[str], siren: str) -> str:
 def find_latest_ca_pdf_for_siren(
     client: InpiSFTPClient,
     siren: str,
+    year: str | None = None,
 ) -> tuple[str | None, SirenSearchStats]:
+    if year is not None and not re.fullmatch(r"\d{4}", year):
+        raise ValueError("--year doit être une année sur 4 chiffres")
+
     stats = SirenSearchStats()
     started_at = perf_counter()
+    years = [year] if year is not None else get_available_inpi_years(client)
 
-    for year in get_available_inpi_years(client):
+    for current_year in years:
         stats.years_inspected += 1
-        logger.info("Recherche des PDF CA_%s_ dans %s/%s", siren, INPI_ROOT_DIR, year)
-        candidates = find_ca_pdf_candidates_for_year(client, year, siren, stats)
+        logger.info(
+            "Recherche des PDF CA_%s_ dans %s/%s",
+            siren,
+            INPI_ROOT_DIR,
+            current_year,
+        )
+        candidates = find_ca_pdf_candidates_for_year(
+            client,
+            current_year,
+            siren,
+            stats,
+        )
         if not candidates:
             continue
 
@@ -454,7 +469,10 @@ def read_pdf_text(client: InpiSFTPClient, remote_path: str) -> str:
     return extract_text_from_pdf_bytes(content)
 
 
-def import_financial_document_for_siren(siren: str) -> dict[str, object]:
+def import_financial_document_for_siren(
+    siren: str,
+    year: str | None = None,
+) -> dict[str, object]:
     conn = get_connection()
     try:
         create_financial_documents_table(conn)
@@ -463,9 +481,14 @@ def import_financial_document_for_siren(siren: str) -> dict[str, object]:
             raise SystemExit(f"SIREN {siren} absent de la table companies.")
 
         with InpiSFTPClient.from_environment() as client:
-            selected_path, search_stats = find_latest_ca_pdf_for_siren(client, siren)
+            selected_path, search_stats = find_latest_ca_pdf_for_siren(
+                client,
+                siren,
+                year=year,
+            )
             if not selected_path:
-                raise SystemExit(f"Aucun PDF CA_{siren}_ trouvé dans {INPI_ROOT_DIR}.")
+                search_path = f"{INPI_ROOT_DIR}/{year}" if year else INPI_ROOT_DIR
+                raise SystemExit(f"Aucun PDF CA_{siren}_ trouvé dans {search_path}.")
 
             closing_date = extract_closing_date_from_pdf_filename(selected_path)
             if not closing_date:
@@ -940,7 +963,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
     args = parse_args()
     if args.siren:
-        summary = import_financial_document_for_siren(args.siren)
+        summary = import_financial_document_for_siren(args.siren, year=args.year)
         revenue = summary["revenue"]
         revenue_text = revenue if revenue is not None else "non détecté"
         print("Import ciblé terminé.")
