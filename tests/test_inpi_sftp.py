@@ -21,6 +21,7 @@ class FakeRawSFTP:
     def __init__(self, entries: dict[str, list[str]]) -> None:
         self.entries = entries
         self.downloads: list[tuple[str, str]] = []
+        self.opens: list[str] = []
 
     def listdir_attr(self, remote_path: str):
         return [
@@ -38,6 +39,10 @@ class FakeRawSFTP:
     def get(self, remote_path: str, local_path: str) -> None:
         self.downloads.append((remote_path, local_path))
         Path(local_path).write_bytes(b"%PDF-1.4")
+
+    def open(self, remote_path: str, mode: str = "r"):
+        self.opens.append(remote_path)
+        raise AssertionError(f"Le PDF ne doit pas être ouvert en mode {mode}.")
 
     def close(self) -> None:
         return None
@@ -165,6 +170,31 @@ class InpiSFTPDownloadTest(unittest.TestCase):
                 "CA_123456789_7401_2012B00001_2025_K00003.pdf",
                 local_path.name,
             )
+
+    def test_download_does_not_write_database_or_parse_pdf(self) -> None:
+        client = make_client(make_entries())
+
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "sqlite3.connect",
+            side_effect=AssertionError("La base ne doit pas être ouverte."),
+        ), patch.object(
+            client,
+            "read_binary_file",
+            side_effect=AssertionError("Le PDF ne doit pas être lu."),
+        ), patch.object(
+            client,
+            "read_text_file",
+            side_effect=AssertionError("Le PDF ne doit pas être parsé."),
+        ):
+            local_path = client.download_latest_financial_pdf_for_siren(
+                "123456789",
+                Path(temp_dir),
+            )
+
+        self.assertIsNotNone(local_path)
+        assert client._sftp is not None
+        self.assertEqual([], client._sftp.opens)
+        self.assertEqual(1, len(client._sftp.downloads))
 
     def test_does_not_redownload_existing_pdf_without_force(self) -> None:
         client = make_client(make_entries())
