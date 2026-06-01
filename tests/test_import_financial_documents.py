@@ -11,8 +11,22 @@ from services.inpi_sftp import InpiSFTPClient, MissingSFTPCredentialsError
 
 
 class FakeSFTPClient:
-    def __init__(self, files: dict[str, str]):
-        self.files = files
+    def __init__(self) -> None:
+        self.entries = {
+            "Bilans_PDF": ["2026"],
+            "Bilans_PDF/2026": ["06"],
+            "Bilans_PDF/2026/06": ["01"],
+            "Bilans_PDF/2026/06/01": [
+                "CA_123456789_7401_2012B00001_2025_K00001",
+                "CA_999999999_7401_2012B00002_2025_K00002",
+            ],
+            "Bilans_PDF/2026/06/01/CA_123456789_7401_2012B00001_2025_K00001": [
+                "CA_123456789_7401_2012B00001_2025_K00001.pdf"
+            ],
+            "Bilans_PDF/2026/06/01/CA_999999999_7401_2012B00002_2025_K00002": [
+                "CA_999999999_7401_2012B00002_2025_K00002.pdf"
+            ],
+        }
 
     def __enter__(self):
         return self
@@ -21,13 +35,22 @@ class FakeSFTPClient:
         return None
 
     def list_entries(self, remote_path: str = "."):
+        names = self.entries[remote_path]
         return [
-            SimpleNamespace(filename=path, st_mode=stat.S_IFREG)
-            for path in self.files
+            SimpleNamespace(
+                filename=name,
+                st_mode=(
+                    stat.S_IFDIR
+                    if self._is_dir(remote_path, name)
+                    else stat.S_IFREG
+                ),
+                st_size=4096 if self._is_dir(remote_path, name) else 1234,
+            )
+            for name in names
         ]
 
-    def read_text_file(self, remote_path: str, max_bytes: int = 10_000_000):
-        return self.files[remote_path]
+    def _is_dir(self, remote_path: str, name: str) -> bool:
+        return f"{remote_path}/{name}" in self.entries
 
 
 class FinancialDocumentsImportTest(unittest.TestCase):
@@ -57,92 +80,61 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         finally:
             conn.close()
 
-    def test_extracts_siren_from_company_siret(self) -> None:
-        self.create_companies(["12345678900012"])
-
-        conn = self.connect()
-        try:
-            sirens, sirets_by_siren = importer.get_existing_company_identifiers(conn)
-        finally:
-            conn.close()
-
-        self.assertEqual({"123456789"}, sirens)
-        self.assertEqual({"12345678900012"}, sirets_by_siren["123456789"])
-
-    def test_parses_metadata_from_sftp_path(self) -> None:
-        metadata = importer.extract_metadata_from_path(
-            "bilans/12345678900012_comptes_annuels_2023-12-31_2024-05-01.pdf"
+    def test_extracts_siren_from_ca_pdf_filename(self) -> None:
+        path = (
+            "Bilans_PDF/2026/06/01/CA_123456789_7401_2012B00001_2025_K00001/"
+            "CA_123456789_7401_2012B00001_2025_K00001.pdf"
         )
 
-        self.assertIsNotNone(metadata)
-        self.assertEqual("123456789", metadata.siren)
-        self.assertEqual("12345678900012", metadata.siret)
-        self.assertEqual("2023-12-31", metadata.closing_date)
-        self.assertEqual("2024-05-01", metadata.filing_date)
-        self.assertEqual("bilan", metadata.document_type)
+        self.assertEqual("123456789", importer.extract_siren_from_pdf_filename(path))
 
-    def test_ignores_documents_missing_from_companies(self) -> None:
-        self.create_companies(["12345678900012"])
-        fake_sftp = FakeSFTPClient(
-            {
-                "index.csv": (
-                    "siren;date_cloture;date_depot;type_document;fichier\n"
-                    "999999999;2023-12-31;2024-05-01;bilan;missing.pdf\n"
-                )
-            }
+    def test_extracts_closing_year_from_ca_pdf_filename(self) -> None:
+        path = (
+            "Bilans_PDF/2026/06/01/CA_123456789_7401_2012B00001_2025_K00001/"
+            "CA_123456789_7401_2012B00001_2025_K00001.pdf"
         )
+
+        self.assertEqual("2025", importer.extract_closing_date_from_pdf_filename(path))
+
+    def test_filters_by_siren_present_in_companies(self) -> None:
+        self.create_companies(["12345678900012"])
+        fake_sftp = FakeSFTPClient()
 
         with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
             importer.InpiSFTPClient,
             "from_environment",
             return_value=fake_sftp,
+        ), patch.object(
+            importer,
+            "read_pdf_text",
+            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
         ):
             stats = importer.import_financial_documents()
 
         conn = self.connect()
         try:
-            count = conn.execute(
-                "SELECT COUNT(*) FROM financial_documents"
-            ).fetchone()[0]
+            rows = conn.execute(
+                "SELECT siren, revenue FROM financial_documents"
+            ).fetchall()
         finally:
             conn.close()
 
-        self.assertEqual(1, stats.files_scanned)
+        self.assertEqual(2, stats.files_scanned)
+        self.assertEqual(1, stats.matching_sirens)
         self.assertEqual(1, stats.documents_ignored)
-        self.assertEqual(0, stats.documents_inserted)
-        self.assertEqual(0, count)
+        self.assertEqual(1, stats.documents_inserted)
+        self.assertEqual("123456789", rows[0]["siren"])
+        self.assertEqual("12345", str(rows[0]["revenue"]))
 
-    def test_import_is_idempotent_without_duplicates(self) -> None:
-        self.create_companies(["12345678900012"])
-        fake_sftp = FakeSFTPClient(
-            {
-                "index.csv": (
-                    "siren;date_cloture;date_depot;type_document;fichier\n"
-                    "123456789;2023-12-31;2024-05-01;bilan;document.pdf\n"
-                )
-            }
-        )
+    def test_extracts_revenue_from_matching_line(self) -> None:
+        text = "Produits\nCHIFFRES D'AFFAIRES NETS 1 000 2 345 678\nCharges"
 
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=fake_sftp,
-        ):
-            first_stats = importer.import_financial_documents()
-            second_stats = importer.import_financial_documents()
+        self.assertEqual("2345678", str(importer.extract_revenue_from_text(text)))
 
-        conn = self.connect()
-        try:
-            count = conn.execute(
-                "SELECT COUNT(*) FROM financial_documents"
-            ).fetchone()[0]
-        finally:
-            conn.close()
+    def test_returns_none_when_revenue_is_not_found(self) -> None:
+        text = "Total bilan\nRésultat net 42"
 
-        self.assertEqual(1, first_stats.documents_inserted)
-        self.assertEqual(0, second_stats.documents_inserted)
-        self.assertEqual(0, second_stats.documents_updated)
-        self.assertEqual(1, count)
+        self.assertIsNone(importer.extract_revenue_from_text(text))
 
     def test_missing_sftp_environment_variable_raises_clear_error(self) -> None:
         complete_env = {

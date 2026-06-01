@@ -65,6 +65,7 @@ Colonnes utilisées :
 - `document_path`
 - `document_type`
 - `source`
+- `revenue`
 - `created_at`
 - `updated_at`
 
@@ -103,6 +104,7 @@ Données importées quand elles sont disponibles dans un index ou dans le chemin
 - `document_path`
 - `document_type`
 - `source`
+- `revenue`
 
 L'import ne conserve que les documents dont le SIREN correspond à une entreprise déjà présente dans `companies`. Cette règle évite de remplir la base avec des documents hors périmètre et garde `financial_documents` alignée avec la sélection d'entreprises existante.
 

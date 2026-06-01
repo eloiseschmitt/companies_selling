@@ -11,16 +11,31 @@ import re
 import sqlite3
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
+from stat import S_ISDIR
+
+from pypdf import PdfReader
 
 from init_financial_documents import create_financial_documents_table
 from services.inpi_sftp import InpiSFTPClient, is_directory
 
 
 DATABASE_FILE = "companies.db"
-DOCUMENT_SOURCE = "INPI_SFTP"
+DOCUMENT_SOURCE = "inpi_sftp"
+INPI_DOCUMENT_TYPE = "comptes_annuels_pdf"
+INPI_ROOT_DIR = "Bilans_PDF"
 INDEX_EXTENSIONS = {".csv", ".txt", ".tsv", ".xml"}
 DOCUMENT_EXTENSIONS = {".pdf", ".xml", ".zip", ".json", ".html", ".txt"}
 INDEX_NAME_HINTS = ("index", "manifest", "metadata", "metadonnees", "liste")
+REVENUE_LABELS = (
+    "CHIFFRES D'AFFAIRES NETS",
+    "Chiffres d'affaires nets",
+    "chiffre d'affaires",
+    "chiffre d'affaires nets",
+)
+AMOUNT_PATTERN = re.compile(
+    r"(?<!\w)-?(?:\d{1,3}(?:[ .\u00a0]\d{3})+|\d+)(?:,\d+)?"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +48,7 @@ class FinancialDocumentMetadata:
     filing_date: str | None
     document_path: str
     document_type: str | None
+    revenue: Decimal | None = None
     source: str = DOCUMENT_SOURCE
 
 
@@ -43,6 +59,10 @@ class ImportStats:
     documents_inserted: int = 0
     documents_updated: int = 0
     documents_without_metadata: int = 0
+    matching_sirens: int = 0
+    pdfs_read: int = 0
+    revenues_found: int = 0
+    pdfs_without_revenue: int = 0
 
 
 def get_connection() -> sqlite3.Connection:
@@ -135,6 +155,165 @@ def remote_join(parent: str, child: str) -> str:
 
 def get_extension(path: str) -> str:
     return posixpath.splitext(path.lower())[1]
+
+
+def entry_is_directory(entry) -> bool:
+    return entry.st_mode is not None and S_ISDIR(entry.st_mode)
+
+
+def get_first_siret_for_siren(
+    sirets_by_siren: dict[str, set[str]],
+    siren: str,
+) -> str | None:
+    sirets = sirets_by_siren.get(siren)
+    if not sirets:
+        return None
+    return sorted(sirets)[0]
+
+
+def parse_ca_pdf_filename(path: str) -> dict[str, str] | None:
+    filename = posixpath.basename(path)
+    match = re.match(
+        r"^CA_(?P<siren>\d{9})_(?P<greffe>[^_]+)_(?P<gestion>[^_]+)_"
+        r"(?P<anneecloture>\d{4})_(?P<numchrono>[^.]+)\.pdf$",
+        filename,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        return match.groupdict()
+
+    gu_match = re.match(
+        r"^GU_CA_(?P<siren>\d{9})_(?P<datecloture>\d{8})_"
+        r"(?P<numchrono>[^.]+)\.pdf$",
+        filename,
+        flags=re.IGNORECASE,
+    )
+    if gu_match:
+        return gu_match.groupdict()
+
+    return None
+
+
+def extract_siren_from_pdf_filename(path: str) -> str | None:
+    parsed = parse_ca_pdf_filename(path)
+    if parsed:
+        return parsed["siren"]
+    return None
+
+
+def extract_closing_date_from_pdf_filename(path: str) -> str | None:
+    parsed = parse_ca_pdf_filename(path)
+    if not parsed:
+        return None
+
+    if parsed.get("datecloture"):
+        return normalize_date(parsed["datecloture"])
+    return parsed.get("anneecloture")
+
+
+def extract_filing_date_from_path(path: str) -> str | None:
+    match = re.search(r"Bilans_PDF/(\d{4})/(\d{2})/(\d{2})/", path)
+    if not match:
+        return None
+    year, month, day = match.groups()
+    return f"{year}-{month}-{day}"
+
+
+def normalize_amount(value: str) -> Decimal | None:
+    compact = value.replace("\u00a0", " ").strip()
+    compact = re.sub(r"\s+", "", compact)
+
+    if "," in compact:
+        compact = compact.replace(".", "").replace(",", ".")
+    else:
+        compact = compact.replace(".", "")
+
+    try:
+        return Decimal(compact)
+    except InvalidOperation:
+        return None
+
+
+def extract_amounts_from_line(line: str) -> list[tuple[int, Decimal]]:
+    amounts = []
+    for match in AMOUNT_PATTERN.finditer(line):
+        amount = normalize_amount(match.group(0))
+        if amount is not None:
+            amounts.append((match.start(), amount))
+    return amounts
+
+
+def line_contains_revenue_label(line: str) -> bool:
+    normalized_line = line.casefold()
+    return any(label.casefold() in normalized_line for label in REVENUE_LABELS)
+
+
+def extract_revenue_from_text(text: str) -> Decimal | None:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        if not line_contains_revenue_label(line):
+            continue
+
+        amounts = extract_amounts_from_line(line)
+        if not amounts and index + 1 < len(lines):
+            amounts = extract_amounts_from_line(lines[index + 1])
+        if not amounts:
+            continue
+
+        header = " ".join(lines[max(0, index - 3):index]).casefold()
+        total_position = header.rfind("total")
+        if total_position >= 0:
+            right_side_amounts = [
+                amount for position, amount in amounts if position >= total_position
+            ]
+            if right_side_amounts:
+                return right_side_amounts[-1]
+
+        return amounts[-1][1]
+
+    return None
+
+
+def extract_text_from_pdf_bytes(content: bytes) -> str:
+    reader = PdfReader(io.BytesIO(content))
+    page_texts = []
+    for page in reader.pages:
+        page_texts.append(page.extract_text() or "")
+    return "\n".join(page_texts)
+
+
+def get_latest_inpi_year(client: InpiSFTPClient) -> str:
+    entries = client.list_entries(INPI_ROOT_DIR)
+    years = [
+        entry.filename
+        for entry in entries
+        if entry_is_directory(entry) and re.fullmatch(r"\d{4}", entry.filename)
+    ]
+    if not years:
+        raise RuntimeError(f"Aucune année disponible dans {INPI_ROOT_DIR}")
+    return sorted(years)[-1]
+
+
+def iter_pdf_files(client: InpiSFTPClient, remote_path: str):
+    stack = [remote_path]
+    while stack:
+        current_path = stack.pop(0)
+        entries = sorted(
+            client.list_entries(current_path),
+            key=lambda item: item.filename,
+        )
+        for entry in entries:
+            entry_path = remote_join(current_path, entry.filename)
+            if entry_is_directory(entry):
+                stack.append(entry_path)
+                continue
+            if get_extension(entry_path) == ".pdf":
+                yield entry_path
+
+
+def read_pdf_text(client: InpiSFTPClient, remote_path: str) -> str:
+    content = client.read_binary_file(remote_path)
+    return extract_text_from_pdf_bytes(content)
 
 
 def is_index_file(path: str) -> bool:
@@ -353,7 +532,7 @@ def upsert_financial_document(
 ) -> str:
     existing = conn.execute(
         """
-        SELECT siret, filing_date, document_type, source
+        SELECT siret, filing_date, document_type, source, revenue
         FROM financial_documents
         WHERE siren = ? AND closing_date = ? AND document_path = ?
         """,
@@ -370,9 +549,10 @@ def upsert_financial_document(
                 filing_date,
                 document_path,
                 document_type,
-                source
+                source,
+                revenue
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 document.siren,
@@ -382,6 +562,7 @@ def upsert_financial_document(
                 document.document_path,
                 document.document_type,
                 document.source,
+                str(document.revenue) if document.revenue is not None else None,
             ),
         )
         return "inserted"
@@ -391,8 +572,14 @@ def upsert_financial_document(
         "filing_date": document.filing_date,
         "document_type": document.document_type,
         "source": document.source,
+        "revenue": document.revenue,
     }
-    changed = any(existing[key] != value for key, value in new_values.items())
+    changed = any(
+        str(existing[key]) != str(value)
+        if value is not None and existing[key] is not None
+        else existing[key] != value
+        for key, value in new_values.items()
+    )
     if not changed:
         return "unchanged"
 
@@ -403,6 +590,7 @@ def upsert_financial_document(
             filing_date = ?,
             document_type = ?,
             source = ?,
+            revenue = ?,
             updated_at = datetime('now')
         WHERE siren = ? AND closing_date = ? AND document_path = ?
         """,
@@ -411,6 +599,7 @@ def upsert_financial_document(
             document.filing_date,
             document.document_type,
             document.source,
+            str(document.revenue) if document.revenue is not None else None,
             document.siren,
             document.closing_date,
             document.document_path,
@@ -424,66 +613,83 @@ def import_financial_documents(
     recursive: bool = False,
     max_depth: int = 2,
     dry_run: bool = False,
+    max_pdfs: int | None = None,
 ) -> ImportStats:
     stats = ImportStats()
     conn = get_connection()
     try:
         create_financial_documents_table(conn)
-        company_sirens, _ = get_existing_company_identifiers(conn)
+        company_sirens, sirets_by_siren = get_existing_company_identifiers(conn)
         logger.info(
             "%s SIREN entreprises chargés depuis companies",
             len(company_sirens),
         )
 
         with InpiSFTPClient.from_environment() as client:
-            files = iter_remote_files(client, remote_path, recursive, max_depth)
-            stats.files_scanned = len(files)
+            year = remote_path
+            if remote_path == ".":
+                year = get_latest_inpi_year(client)
+                year_path = f"{INPI_ROOT_DIR}/{year}"
+            elif re.fullmatch(r"\d{4}", remote_path):
+                year_path = f"{INPI_ROOT_DIR}/{remote_path}"
+            else:
+                year_path = remote_path
 
-            for remote_file in files:
-                extension = get_extension(remote_file)
-                documents = []
+            logger.info("Import des PDF INPI depuis %s", year_path)
 
-                if is_index_file(remote_file):
-                    try:
-                        content = client.read_text_file(remote_file)
-                    except ValueError:
-                        logger.warning(
-                            "Index ignoré car trop volumineux: %s",
-                            remote_file,
-                        )
-                        content = ""
-                    if content:
-                        documents = parse_index_file(content, remote_file)
+            for remote_file in iter_pdf_files(client, year_path):
+                stats.files_scanned += 1
+                if max_pdfs is not None and stats.files_scanned > max_pdfs:
+                    break
 
-                if not documents and extension in DOCUMENT_EXTENSIONS:
-                    metadata = extract_metadata_from_path(remote_file)
-                    if metadata:
-                        documents = [metadata]
-
-                if not documents:
+                siren = extract_siren_from_pdf_filename(remote_file)
+                closing_date = extract_closing_date_from_pdf_filename(remote_file)
+                if not siren or not closing_date:
                     stats.documents_without_metadata += 1
                     continue
 
-                for document in documents:
-                    if document.siren not in company_sirens:
-                        stats.documents_ignored += 1
-                        continue
+                if siren not in company_sirens:
+                    stats.documents_ignored += 1
+                    continue
 
-                    if dry_run:
-                        continue
+                stats.matching_sirens += 1
+                siret = get_first_siret_for_siren(sirets_by_siren, siren)
+                text = read_pdf_text(client, remote_file)
+                stats.pdfs_read += 1
+                revenue = extract_revenue_from_text(text)
+                if revenue is None:
+                    stats.pdfs_without_revenue += 1
+                else:
+                    stats.revenues_found += 1
 
-                    result = upsert_financial_document(conn, document)
-                    if result == "inserted":
-                        stats.documents_inserted += 1
-                    elif result == "updated":
-                        stats.documents_updated += 1
+                if dry_run:
+                    continue
+
+                document = FinancialDocumentMetadata(
+                    siren=siren,
+                    siret=siret,
+                    closing_date=closing_date,
+                    filing_date=extract_filing_date_from_path(remote_file),
+                    document_path=remote_file,
+                    document_type=INPI_DOCUMENT_TYPE,
+                    revenue=revenue,
+                )
+                result = upsert_financial_document(conn, document)
+                if result == "inserted":
+                    stats.documents_inserted += 1
+                elif result == "updated":
+                    stats.documents_updated += 1
 
             if not dry_run:
                 conn.commit()
     finally:
         conn.close()
 
-    logger.info("Fichiers parcourus: %s", stats.files_scanned)
+    logger.info("Fichiers PDF listés: %s", stats.files_scanned)
+    logger.info("SIREN correspondants: %s", stats.matching_sirens)
+    logger.info("PDF lus: %s", stats.pdfs_read)
+    logger.info("Chiffres d'affaires trouvés: %s", stats.revenues_found)
+    logger.info("PDF sans chiffre d'affaires détecté: %s", stats.pdfs_without_revenue)
     logger.info("Documents ignorés: %s", stats.documents_ignored)
     logger.info("Documents insérés: %s", stats.documents_inserted)
     logger.info("Documents mis à jour: %s", stats.documents_updated)
@@ -505,7 +711,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--remote-path",
         default=".",
-        help="Dossier distant à parcourir sur le SFTP.",
+        help="Année ou dossier distant à parcourir sur le SFTP.",
     )
     parser.add_argument(
         "--recursive",
@@ -523,6 +729,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Parcourt le SFTP sans écrire dans la base.",
     )
+    parser.add_argument(
+        "--max-pdfs",
+        type=int,
+        default=None,
+        help="Nombre maximal de PDF à lister pendant un import de test.",
+    )
     return parser.parse_args()
 
 
@@ -534,6 +746,7 @@ def main() -> None:
         recursive=args.recursive,
         max_depth=args.max_depth,
         dry_run=args.dry_run,
+        max_pdfs=args.max_pdfs,
     )
 
 

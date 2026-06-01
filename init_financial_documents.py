@@ -44,7 +44,17 @@ def create_financial_documents_table(conn: sqlite3.Connection) -> None:
         ON financial_documents (closing_date)
         """
     )
+    ensure_financial_documents_columns(conn)
     conn.commit()
+
+
+def ensure_financial_documents_columns(conn: sqlite3.Connection) -> None:
+    existing_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(financial_documents)")
+    }
+
+    if "revenue" not in existing_columns:
+        conn.execute("ALTER TABLE financial_documents ADD COLUMN revenue NUMERIC")
 
 
 def main() -> None:

@@ -18,3 +18,4 @@ uvicorn==0.39.0
 sqladmin
 sqlalchemy
 paramiko==5.0.0
+pypdf==6.5.0

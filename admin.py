@@ -49,6 +49,7 @@ class FinancialDocument(Base):
     document_path: Mapped[str]
     document_type: Mapped[str | None]
     source: Mapped[str | None]
+    revenue: Mapped[str | None]
     created_at: Mapped[str]
     updated_at: Mapped[str]
 
@@ -161,6 +162,7 @@ class FinancialDocumentAdmin(ModelView, model=FinancialDocument):
         FinancialDocument.filing_date,
         FinancialDocument.document_type,
         FinancialDocument.source,
+        FinancialDocument.revenue,
         FinancialDocument.document_path,
         FinancialDocument.created_at,
         FinancialDocument.updated_at,
@@ -180,6 +182,7 @@ class FinancialDocumentAdmin(ModelView, model=FinancialDocument):
         FinancialDocument.filing_date,
         FinancialDocument.document_type,
         FinancialDocument.source,
+        FinancialDocument.revenue,
         FinancialDocument.created_at,
         FinancialDocument.updated_at,
     ]
@@ -192,6 +195,7 @@ class FinancialDocumentAdmin(ModelView, model=FinancialDocument):
         FinancialDocument.document_path: "Chemin du document",
         FinancialDocument.document_type: "Type de document",
         FinancialDocument.source: "Source",
+        FinancialDocument.revenue: "Chiffre d'affaires",
         FinancialDocument.created_at: "Créé le",
         FinancialDocument.updated_at: "Mis à jour le",
     }

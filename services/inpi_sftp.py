@@ -47,6 +47,19 @@ def get_required_env(name: str) -> str:
     return value
 
 
+def get_sftp_port() -> int:
+    raw_port = os.getenv("SFTP_PORT")
+    if not raw_port:
+        return 22
+
+    try:
+        return int(raw_port)
+    except ValueError as exc:
+        raise MissingSFTPCredentialsError(
+            "Variable d'environnement SFTP invalide: SFTP_PORT"
+        ) from exc
+
+
 class InpiSFTPClient:
     """Client SFTP minimal pour lister les fichiers disponibles sur l'INPI."""
 
@@ -65,6 +78,7 @@ class InpiSFTPClient:
             host=get_required_env("SFTP_HOST"),
             username=get_required_env("SFTP_USER"),
             password=get_required_env("SFTP_PASSWORD"),
+            port=get_sftp_port(),
         )
 
     def connect(self) -> None:
@@ -144,6 +158,31 @@ class InpiSFTPClient:
             raise ValueError(f"Fichier distant trop volumineux: {remote_path}")
 
         return content.decode(encoding, errors="replace")
+
+    def read_binary_file(
+        self,
+        remote_path: str,
+        max_bytes: int = 50_000_000,
+    ) -> bytes:
+        if self._sftp is None:
+            raise RuntimeError("La connexion SFTP INPI n'est pas ouverte.")
+
+        try:
+            with self._sftp.open(remote_path, "rb") as remote_file:
+                content = remote_file.read(max_bytes + 1)
+        except Exception:
+            logger.exception(
+                "Erreur lors de la lecture SFTP INPI du fichier %s pour %s@%s",
+                remote_path,
+                self.username,
+                self.host,
+            )
+            raise
+
+        if len(content) > max_bytes:
+            raise ValueError(f"Fichier distant trop volumineux: {remote_path}")
+
+        return content
 
     def close(self) -> None:
         if self._sftp is not None:
