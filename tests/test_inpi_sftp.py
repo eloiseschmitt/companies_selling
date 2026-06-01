@@ -1,3 +1,5 @@
+import io
+import os
 import stat
 import tempfile
 import unittest
@@ -5,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import services.inpi_sftp as inpi_sftp
 from services.inpi_sftp import (
     InpiSFTPClient,
     download_latest_financial_pdf_for_siren,
@@ -179,6 +182,97 @@ class InpiSFTPDownloadTest(unittest.TestCase):
                 )
 
             self.assertIsNotNone(local_path)
+
+    def test_cli_requires_siren(self) -> None:
+        with patch("sys.argv", ["inpi_sftp.py"]), patch("sys.stderr", io.StringIO()):
+            with self.assertRaises(SystemExit):
+                inpi_sftp.parse_args()
+
+    def test_cli_rejects_invalid_siren(self) -> None:
+        with patch(
+            "sys.argv",
+            ["inpi_sftp.py", "--siren", "123"],
+        ), patch("sys.stderr", io.StringIO()):
+            with self.assertRaises(SystemExit):
+                inpi_sftp.parse_args()
+
+    def test_cli_downloads_pdf_to_default_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            expected_path = Path("downloads") / "annual.pdf"
+
+            def fake_download(siren: str, destination_dir: Path) -> Path:
+                self.assertEqual("123456789", siren)
+                self.assertEqual(Path("downloads"), destination_dir)
+                self.assertTrue(destination_dir.exists())
+                return expected_path
+
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                with patch(
+                    "sys.argv",
+                    ["inpi_sftp.py", "--siren", "123456789"],
+                ), patch(
+                    "services.inpi_sftp.download_latest_financial_pdf_for_siren",
+                    side_effect=fake_download,
+                ), patch("builtins.print") as print_mock:
+                    inpi_sftp.main()
+            finally:
+                os.chdir(original_cwd)
+
+            print_mock.assert_called_once_with(f"PDF téléchargé: {expected_path}")
+
+    def test_cli_downloads_pdf_to_custom_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            destination = Path(temp_dir) / "custom-downloads"
+            expected_path = destination / "annual.pdf"
+
+            def fake_download(siren: str, destination_dir: Path) -> Path:
+                self.assertEqual("123456789", siren)
+                self.assertEqual(destination, destination_dir)
+                self.assertTrue(destination_dir.exists())
+                return expected_path
+
+            with patch(
+                "sys.argv",
+                [
+                    "inpi_sftp.py",
+                    "--siren",
+                    "123456789",
+                    "--destination",
+                    str(destination),
+                ],
+            ), patch(
+                "services.inpi_sftp.download_latest_financial_pdf_for_siren",
+                side_effect=fake_download,
+            ), patch("builtins.print") as print_mock:
+                inpi_sftp.main()
+
+            print_mock.assert_called_once_with(f"PDF téléchargé: {expected_path}")
+
+    def test_cli_prints_clear_message_when_no_pdf_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            destination = Path(temp_dir) / "downloads"
+
+            with patch(
+                "sys.argv",
+                [
+                    "inpi_sftp.py",
+                    "--siren",
+                    "123456789",
+                    "--destination",
+                    str(destination),
+                ],
+            ), patch(
+                "services.inpi_sftp.download_latest_financial_pdf_for_siren",
+                return_value=None,
+            ), patch("builtins.print") as print_mock:
+                inpi_sftp.main()
+
+            self.assertTrue(destination.exists())
+            print_mock.assert_called_once_with(
+                "Aucun PDF de comptes annuels trouvé pour le SIREN 123456789."
+            )
 
 
 if __name__ == "__main__":

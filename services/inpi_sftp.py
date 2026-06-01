@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import os
 import posixpath
@@ -248,6 +249,14 @@ def validate_siren(siren: str) -> None:
         raise ValueError("siren doit contenir exactement 9 chiffres.")
 
 
+def parse_cli_siren(siren: str) -> str:
+    try:
+        validate_siren(siren)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    return siren
+
+
 def remote_join(parent: str, child: str) -> str:
     if parent in {"", "."}:
         return child
@@ -358,3 +367,42 @@ def download_latest_financial_pdf_for_siren(
     client = InpiSFTPClient.from_environment()
     with client:
         return client.download_latest_financial_pdf_for_siren(siren, destination_dir)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Télécharge le dernier PDF de comptes annuels INPI d'un SIREN."
+    )
+    parser.add_argument(
+        "--siren",
+        required=True,
+        type=parse_cli_siren,
+        help="SIREN à 9 chiffres.",
+    )
+    parser.add_argument(
+        "--destination",
+        type=Path,
+        default=Path("downloads"),
+        help="Dossier local de destination. Par défaut: ./downloads.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+    args = parse_args()
+    destination_dir = args.destination
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    downloaded_path = download_latest_financial_pdf_for_siren(
+        args.siren,
+        destination_dir,
+    )
+    if downloaded_path is None:
+        print(f"Aucun PDF de comptes annuels trouvé pour le SIREN {args.siren}.")
+        return
+
+    print(f"PDF téléchargé: {downloaded_path}")
+
+
+if __name__ == "__main__":
+    main()
