@@ -7,6 +7,7 @@ import logging
 import os
 import posixpath
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from stat import S_ISDIR
 
@@ -26,6 +27,13 @@ class MissingSFTPCredentialsError(RuntimeError):
     """Erreur levée quand la configuration SFTP est incomplète."""
 
 
+@dataclass
+class FinancialPdfSearchResult:
+    selected_path: str | None
+    years_inspected: list[str]
+    candidates_found: int
+
+
 def load_env_file(env_file: Path = DEFAULT_ENV_FILE) -> None:
     """Charge les variables d'un fichier .env sans écraser l'environnement."""
     load_dotenv(env_file)
@@ -34,6 +42,7 @@ def load_env_file(env_file: Path = DEFAULT_ENV_FILE) -> None:
 def get_required_env(name: str) -> str:
     value = os.getenv(name)
     if not value:
+        logger.error("Variable d'environnement SFTP manquante: %s", name)
         raise MissingSFTPCredentialsError(
             f"Variable d'environnement SFTP manquante: {name}"
         )
@@ -67,12 +76,19 @@ class InpiSFTPClient:
     @classmethod
     def from_environment(cls) -> InpiSFTPClient:
         load_env_file()
-        return cls(
+        client = cls(
             host=get_required_env("SFTP_HOST"),
             username=get_required_env("SFTP_USER"),
             password=get_required_env("SFTP_PASSWORD"),
             port=get_sftp_port(),
         )
+        logger.info(
+            "Configuration SFTP INPI chargée: hôte=%s, port=%s, utilisateur=%s",
+            client.host,
+            client.port,
+            client.username,
+        )
+        return client
 
     def connect(self) -> None:
         try:
@@ -212,12 +228,27 @@ class InpiSFTPClient:
     ) -> Path | None:
         """Télécharge le PDF financier INPI le plus récent pour un SIREN."""
         validate_siren(siren)
-        selected_path = find_latest_financial_pdf_path_for_siren(self, siren)
+        logger.info(
+            "Hôte SFTP utilisé: %s:%s, utilisateur=%s",
+            self.host,
+            self.port,
+            self.username,
+        )
+        search_result = search_latest_financial_pdf_for_siren(self, siren)
+        selected_path = search_result.selected_path
+        logger.info("Années inspectées: %s", ", ".join(search_result.years_inspected))
+        logger.info(
+            "Nombre de fichiers candidats trouvés: %s",
+            search_result.candidates_found,
+        )
         if selected_path is None:
+            logger.error("Aucun PDF de comptes annuels trouvé pour le SIREN %s.", siren)
             return None
 
+        logger.info("Chemin distant sélectionné: %s", selected_path)
         local_path = destination_dir / posixpath.basename(selected_path)
         downloaded_path = self.download_file(selected_path, local_path, force=force)
+        logger.info("Chemin local final: %s", downloaded_path)
         logger.info(
             "PDF financier INPI disponible pour le SIREN %s: %s",
             siren,
@@ -256,6 +287,7 @@ def is_directory(entry: paramiko.SFTPAttributes) -> bool:
 
 def validate_siren(siren: str) -> None:
     if not re.fullmatch(r"\d{9}", siren):
+        logger.error("SIREN invalide: %s", siren)
         raise ValueError("siren doit contenir exactement 9 chiffres.")
 
 
@@ -281,6 +313,7 @@ def list_sorted_entries(
 
 
 def get_available_financial_years(client: InpiSFTPClient) -> list[str]:
+    logger.info("Dossier racine consulté: %s", INPI_FINANCIAL_ROOT_DIR)
     entries = list_sorted_entries(client, INPI_FINANCIAL_ROOT_DIR)
     years = [
         entry.filename
@@ -354,9 +387,25 @@ def find_latest_financial_pdf_path_for_siren(
     client: InpiSFTPClient,
     siren: str,
 ) -> str | None:
+    return search_latest_financial_pdf_for_siren(client, siren).selected_path
+
+
+def search_latest_financial_pdf_for_siren(
+    client: InpiSFTPClient,
+    siren: str,
+) -> FinancialPdfSearchResult:
     validate_siren(siren)
+    years_inspected = []
+    candidates_found = 0
     for year in get_available_financial_years(client):
+        years_inspected.append(year)
         candidates = find_financial_pdf_candidates_in_year(client, year, siren)
+        candidates_found += len(candidates)
+        logger.info(
+            "Année inspectée: %s, fichiers candidats trouvés: %s",
+            year,
+            len(candidates),
+        )
         if candidates:
             candidates_by_filename = {
                 posixpath.basename(path): path for path in candidates
@@ -365,8 +414,16 @@ def find_latest_financial_pdf_path_for_siren(
                 list(candidates_by_filename)
             )
             if selected_filename is not None:
-                return candidates_by_filename[selected_filename]
-    return None
+                return FinancialPdfSearchResult(
+                    selected_path=candidates_by_filename[selected_filename],
+                    years_inspected=years_inspected,
+                    candidates_found=candidates_found,
+                )
+    return FinancialPdfSearchResult(
+        selected_path=None,
+        years_inspected=years_inspected,
+        candidates_found=candidates_found,
+    )
 
 
 def download_latest_financial_pdf_for_siren(
