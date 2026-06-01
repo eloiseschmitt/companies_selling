@@ -1,9 +1,19 @@
 """Crée la table financial_documents dans la base SQLite locale."""
 
+import argparse
+import re
 import sqlite3
 
 
 DATABASE_FILE = "companies.db"
+
+
+def validate_siren(value: str) -> str:
+    if not re.fullmatch(r"\d{9}", value):
+        raise argparse.ArgumentTypeError(
+            "--siren doit contenir exactement 9 chiffres."
+        )
+    return value
 
 
 def create_financial_documents_table(conn: sqlite3.Connection) -> None:
@@ -57,7 +67,20 @@ def ensure_financial_documents_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE financial_documents ADD COLUMN revenue NUMERIC")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Crée la table financial_documents dans la base SQLite locale."
+    )
+    parser.add_argument(
+        "--siren",
+        type=validate_siren,
+        help="SIREN optionnel à 9 chiffres.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    parse_args()
     conn = sqlite3.connect(DATABASE_FILE)
     try:
         create_financial_documents_table(conn)
