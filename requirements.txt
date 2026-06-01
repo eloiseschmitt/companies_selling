@@ -19,3 +19,4 @@ sqladmin
 sqlalchemy
 paramiko==5.0.0
 pypdf==6.5.0
+python-dotenv==1.2.2

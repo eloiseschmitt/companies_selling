@@ -4,11 +4,14 @@ import sqlite3
 import os
 import re
 from datetime import date, datetime
+from dotenv import load_dotenv
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 from constants import MAPPING_HEADCOUNT
 from app import app
 import admin
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))

@@ -8,6 +8,7 @@ from pathlib import Path
 from stat import S_ISDIR
 
 import paramiko
+from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,19 +24,7 @@ class MissingSFTPCredentialsError(RuntimeError):
 
 def load_env_file(env_file: Path = DEFAULT_ENV_FILE) -> None:
     """Charge les variables d'un fichier .env sans écraser l'environnement."""
-    if not env_file.exists():
-        return
-
-    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip("\"'")
-        if key:
-            os.environ.setdefault(key, value)
+    load_dotenv(env_file)
 
 
 def get_required_env(name: str) -> str:
