@@ -609,7 +609,7 @@ def upsert_financial_document(
 
 
 def import_financial_documents(
-    remote_path: str = ".",
+    year: str | None = None,
     recursive: bool = False,
     max_depth: int = 2,
     dry_run: bool = False,
@@ -627,14 +627,10 @@ def import_financial_documents(
         )
 
         with InpiSFTPClient.from_environment() as client:
-            year = remote_path
-            if remote_path == ".":
-                year = get_latest_inpi_year(client)
-                year_path = f"{INPI_ROOT_DIR}/{year}"
-            elif re.fullmatch(r"\d{4}", remote_path):
-                year_path = f"{INPI_ROOT_DIR}/{remote_path}"
-            else:
-                year_path = remote_path
+            selected_year = year or get_latest_inpi_year(client)
+            if not re.fullmatch(r"\d{4}", selected_year):
+                raise ValueError("--year doit être une année sur 4 chiffres")
+            year_path = f"{INPI_ROOT_DIR}/{selected_year}"
 
             logger.info("Import des PDF INPI depuis %s", year_path)
 
@@ -713,9 +709,9 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument(
-        "--remote-path",
-        default=".",
-        help="Année ou dossier distant à parcourir sur le SFTP.",
+        "--year",
+        default=None,
+        help="Année Bilans_PDF à importer. Par défaut: année la plus récente.",
     )
     parser.add_argument(
         "--recursive",
@@ -752,7 +748,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
     args = parse_args()
     import_financial_documents(
-        remote_path=args.remote_path,
+        year=args.year,
         recursive=args.recursive,
         max_depth=args.max_depth,
         dry_run=args.dry_run,

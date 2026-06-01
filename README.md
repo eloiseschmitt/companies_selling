@@ -85,15 +85,15 @@ Variables d'environnement nécessaires :
 Lancer l'import :
 
 ```bash
-python import_financial_documents.py --remote-path .
+python import_financial_documents.py
 ```
 
 Options utiles :
 
 ```bash
-python import_financial_documents.py --remote-path . --dry-run
-python import_financial_documents.py --remote-path . --limit 20
-python import_financial_documents.py --remote-path . --recursive --max-depth 2
+python import_financial_documents.py --year 2026 --dry-run
+python import_financial_documents.py --year 2026 --limit 20
+python import_financial_documents.py --year 2026 --recursive --max-depth 2
 ```
 
 Données importées quand elles sont disponibles dans un index ou dans le chemin du fichier :
