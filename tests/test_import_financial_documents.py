@@ -1,3 +1,4 @@
+import argparse
 import os
 import sqlite3
 import stat
@@ -11,8 +12,8 @@ from services.inpi_sftp import InpiSFTPClient, MissingSFTPCredentialsError
 
 
 class FakeSFTPClient:
-    def __init__(self) -> None:
-        self.entries = {
+    def __init__(self, entries: dict[str, list[str]] | None = None) -> None:
+        self.entries = entries or {
             "Bilans_PDF": ["2026"],
             "Bilans_PDF/2026": ["06"],
             "Bilans_PDF/2026/06": ["01"],
@@ -55,6 +56,44 @@ class FakeSFTPClient:
 
     def _is_dir(self, remote_path: str, name: str) -> bool:
         return f"{remote_path}/{name}" in self.entries
+
+
+def make_targeted_entries() -> dict[str, list[str]]:
+    return {
+        "Bilans_PDF": ["2024", "2025", "2026"],
+        "Bilans_PDF/2026": ["06"],
+        "Bilans_PDF/2026/06": ["01"],
+        "Bilans_PDF/2026/06/01": [
+            "CA_999999999_7401_2012B00001_2025_K00001"
+        ],
+        "Bilans_PDF/2026/06/01/CA_999999999_7401_2012B00001_2025_K00001": [
+            "CA_999999999_7401_2012B00001_2025_K00001.pdf"
+        ],
+        "Bilans_PDF/2025": ["12"],
+        "Bilans_PDF/2025/12": ["31"],
+        "Bilans_PDF/2025/12/31": [
+            "CA_123456789_7401_2012B00001_2025_K00001",
+            "CA_123456789_7401_2012B00001_2025_K00003",
+            "CA_123456789_7401_2012B00001_2024_K00099",
+        ],
+        "Bilans_PDF/2025/12/31/CA_123456789_7401_2012B00001_2025_K00001": [
+            "CA_123456789_7401_2012B00001_2025_K00001.pdf"
+        ],
+        "Bilans_PDF/2025/12/31/CA_123456789_7401_2012B00001_2025_K00003": [
+            "CA_123456789_7401_2012B00001_2025_K00003.pdf"
+        ],
+        "Bilans_PDF/2025/12/31/CA_123456789_7401_2012B00001_2024_K00099": [
+            "CA_123456789_7401_2012B00001_2024_K00099.pdf"
+        ],
+        "Bilans_PDF/2024": ["12"],
+        "Bilans_PDF/2024/12": ["31"],
+        "Bilans_PDF/2024/12/31": [
+            "CA_123456789_7401_2012B00001_2026_K99999"
+        ],
+        "Bilans_PDF/2024/12/31/CA_123456789_7401_2012B00001_2026_K99999": [
+            "CA_123456789_7401_2012B00001_2026_K99999.pdf"
+        ],
+    }
 
 
 class FinancialDocumentsImportTest(unittest.TestCase):
@@ -190,6 +229,117 @@ class FinancialDocumentsImportTest(unittest.TestCase):
                         missing_name,
                     ):
                         InpiSFTPClient.from_environment()
+
+    def test_validates_targeted_siren_format(self) -> None:
+        self.assertEqual("123456789", importer.validate_siren("123456789"))
+
+        for value in ("12345678", "1234567890", "abcdefghi", "123 456 789"):
+            with self.subTest(value=value):
+                with self.assertRaises(argparse.ArgumentTypeError):
+                    importer.validate_siren(value)
+
+    def test_finds_latest_pdf_for_siren_in_latest_matching_year(self) -> None:
+        fake_sftp = FakeSFTPClient(make_targeted_entries())
+
+        selected_path, stats = importer.find_latest_ca_pdf_for_siren(
+            fake_sftp,
+            "123456789",
+        )
+
+        self.assertEqual(
+            "Bilans_PDF/2025/12/31/CA_123456789_7401_2012B00001_2025_K00003/"
+            "CA_123456789_7401_2012B00001_2025_K00003.pdf",
+            selected_path,
+        )
+        self.assertEqual(2, stats.years_inspected)
+        self.assertGreater(stats.files_examined, 0)
+
+    def test_returns_none_when_no_pdf_exists_for_siren(self) -> None:
+        fake_sftp = FakeSFTPClient(make_targeted_entries())
+
+        selected_path, stats = importer.find_latest_ca_pdf_for_siren(
+            fake_sftp,
+            "111111111",
+        )
+
+        self.assertIsNone(selected_path)
+        self.assertEqual(3, stats.years_inspected)
+
+    def test_targeted_import_updates_only_requested_company(self) -> None:
+        self.create_companies(["12345678900012", "99999999900012"])
+        conn = self.connect()
+        try:
+            from init_financial_documents import create_financial_documents_table
+
+            create_financial_documents_table(conn)
+            conn.execute(
+                """
+                INSERT INTO financial_documents (
+                    siren,
+                    siret,
+                    closing_date,
+                    document_path,
+                    document_type,
+                    source,
+                    revenue
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "999999999",
+                    "99999999900012",
+                    "2025",
+                    "existing.pdf",
+                    "comptes_annuels_pdf",
+                    "inpi_sftp",
+                    "42",
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        fake_sftp = FakeSFTPClient(make_targeted_entries())
+        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
+            importer.InpiSFTPClient,
+            "from_environment",
+            return_value=fake_sftp,
+        ), patch.object(
+            importer,
+            "read_pdf_text",
+            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        ) as read_pdf_text:
+            summary = importer.import_financial_document_for_siren("123456789")
+
+        conn = self.connect()
+        try:
+            rows = conn.execute(
+                """
+                SELECT siren, revenue
+                FROM financial_documents
+                ORDER BY siren
+                """
+            ).fetchall()
+        finally:
+            conn.close()
+
+        self.assertEqual("inserted", summary["status"])
+        self.assertEqual(1, read_pdf_text.call_count)
+        self.assertEqual(["123456789", "999999999"], [row["siren"] for row in rows])
+        self.assertEqual("12345", str(rows[0]["revenue"]))
+        self.assertEqual("42", str(rows[1]["revenue"]))
+
+    def test_targeted_import_requires_company_siren(self) -> None:
+        self.create_companies(["99999999900012"])
+
+        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
+            importer.InpiSFTPClient,
+            "from_environment",
+        ) as from_environment:
+            with self.assertRaisesRegex(SystemExit, "absent de la table companies"):
+                importer.import_financial_document_for_siren("123456789")
+
+        from_environment.assert_not_called()
 
 
 if __name__ == "__main__":

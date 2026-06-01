@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from stat import S_ISDIR
+from time import perf_counter
 
 from pypdf import PdfReader
 
@@ -63,6 +64,13 @@ class ImportStats:
     pdfs_read: int = 0
     revenues_found: int = 0
     pdfs_without_revenue: int = 0
+
+
+@dataclass
+class SirenSearchStats:
+    years_inspected: int = 0
+    files_examined: int = 0
+    duration_seconds: float = 0.0
 
 
 def get_connection() -> sqlite3.Connection:
@@ -122,6 +130,14 @@ def normalize_digits(value: object, expected_length: int) -> str | None:
     return None
 
 
+def validate_siren(value: str) -> str:
+    if not re.fullmatch(r"\d{9}", value):
+        raise argparse.ArgumentTypeError(
+            "--siren doit contenir exactement 9 chiffres."
+        )
+    return value
+
+
 def normalize_date(value: object) -> str | None:
     if value is None:
         return None
@@ -171,6 +187,10 @@ def get_first_siret_for_siren(
     return sorted(sirets)[0]
 
 
+def list_sorted_entries(client: InpiSFTPClient, remote_path: str):
+    return sorted(client.list_entries(remote_path), key=lambda entry: entry.filename)
+
+
 def parse_ca_pdf_filename(path: str) -> dict[str, str] | None:
     filename = posixpath.basename(path)
     match = re.match(
@@ -209,6 +229,23 @@ def extract_closing_date_from_pdf_filename(path: str) -> str | None:
     if parsed.get("datecloture"):
         return normalize_date(parsed["datecloture"])
     return parsed.get("anneecloture")
+
+
+def parse_ca_pdf_sort_key(filename: str, siren: str) -> tuple[int, tuple]:
+    parsed = parse_ca_pdf_filename(filename)
+    if not parsed or parsed["siren"] != siren:
+        return 0, ()
+
+    closing_value = parsed.get("datecloture") or parsed.get("anneecloture", "")
+    closing_digits = re.sub(r"\D", "", closing_value)
+    closing_key = int(closing_digits) if closing_digits else 0
+    chrono = parsed.get("numchrono", "")
+    chrono_key = tuple(
+        (1, int(part)) if part.isdigit() else (0, part)
+        for part in re.split(r"(\d+)", chrono)
+        if part
+    )
+    return closing_key, chrono_key
 
 
 def extract_filing_date_from_path(path: str) -> str | None:
@@ -294,6 +331,107 @@ def get_latest_inpi_year(client: InpiSFTPClient) -> str:
     return sorted(years)[-1]
 
 
+def get_available_inpi_years(client: InpiSFTPClient) -> list[str]:
+    entries = list_sorted_entries(client, INPI_ROOT_DIR)
+    years = [
+        entry.filename
+        for entry in entries
+        if entry_is_directory(entry) and re.fullmatch(r"\d{4}", entry.filename)
+    ]
+    return sorted(years, reverse=True)
+
+
+def find_ca_pdf_candidates_for_year(
+    client: InpiSFTPClient,
+    year: str,
+    siren: str,
+    stats: SirenSearchStats,
+) -> list[str]:
+    candidates = []
+    prefix = f"CA_{siren}_"
+    year_path = remote_join(INPI_ROOT_DIR, year)
+
+    for month_entry in reversed(list_sorted_entries(client, year_path)):
+        stats.files_examined += 1
+        if not entry_is_directory(month_entry):
+            continue
+
+        month_path = remote_join(year_path, month_entry.filename)
+        for day_entry in reversed(list_sorted_entries(client, month_path)):
+            stats.files_examined += 1
+            if not entry_is_directory(day_entry):
+                continue
+
+            day_path = remote_join(month_path, day_entry.filename)
+            for document_entry in reversed(list_sorted_entries(client, day_path)):
+                stats.files_examined += 1
+                document_path = remote_join(day_path, document_entry.filename)
+                if not document_entry.filename.startswith(prefix):
+                    continue
+
+                if not entry_is_directory(document_entry):
+                    if get_extension(document_entry.filename) == ".pdf":
+                        candidates.append(document_path)
+                    continue
+
+                for file_entry in list_sorted_entries(client, document_path):
+                    stats.files_examined += 1
+                    is_matching_pdf = (
+                        file_entry.filename.startswith(prefix)
+                        and get_extension(file_entry.filename) == ".pdf"
+                    )
+                    if is_matching_pdf:
+                        candidates.append(
+                            remote_join(document_path, file_entry.filename)
+                        )
+
+    return candidates
+
+
+def select_latest_ca_pdf(paths: list[str], siren: str) -> str:
+    return max(
+        paths,
+        key=lambda path: parse_ca_pdf_sort_key(posixpath.basename(path), siren),
+    )
+
+
+def find_latest_ca_pdf_for_siren(
+    client: InpiSFTPClient,
+    siren: str,
+) -> tuple[str | None, SirenSearchStats]:
+    stats = SirenSearchStats()
+    started_at = perf_counter()
+
+    for year in get_available_inpi_years(client):
+        stats.years_inspected += 1
+        logger.info("Recherche des PDF CA_%s_ dans %s/%s", siren, INPI_ROOT_DIR, year)
+        candidates = find_ca_pdf_candidates_for_year(client, year, siren, stats)
+        if not candidates:
+            continue
+
+        selected_path = select_latest_ca_pdf(candidates, siren)
+        stats.duration_seconds = perf_counter() - started_at
+        logger.info("PDF INPI trouvé pour le SIREN %s: %s", siren, selected_path)
+        logger.info(
+            "Recherche SIREN terminée: années inspectées=%s, fichiers examinés=%s, "
+            "durée=%.2fs",
+            stats.years_inspected,
+            stats.files_examined,
+            stats.duration_seconds,
+        )
+        return selected_path, stats
+
+    stats.duration_seconds = perf_counter() - started_at
+    logger.info(
+        "Recherche SIREN terminée sans résultat: années inspectées=%s, "
+        "fichiers examinés=%s, durée=%.2fs",
+        stats.years_inspected,
+        stats.files_examined,
+        stats.duration_seconds,
+    )
+    return None, stats
+
+
 def iter_pdf_files(client: InpiSFTPClient, remote_path: str):
     stack = [remote_path]
     while stack:
@@ -314,6 +452,54 @@ def iter_pdf_files(client: InpiSFTPClient, remote_path: str):
 def read_pdf_text(client: InpiSFTPClient, remote_path: str) -> str:
     content = client.read_binary_file(remote_path)
     return extract_text_from_pdf_bytes(content)
+
+
+def import_financial_document_for_siren(siren: str) -> dict[str, object]:
+    conn = get_connection()
+    try:
+        create_financial_documents_table(conn)
+        company_sirens, sirets_by_siren = get_existing_company_identifiers(conn)
+        if siren not in company_sirens:
+            raise SystemExit(f"SIREN {siren} absent de la table companies.")
+
+        with InpiSFTPClient.from_environment() as client:
+            selected_path, search_stats = find_latest_ca_pdf_for_siren(client, siren)
+            if not selected_path:
+                raise SystemExit(f"Aucun PDF CA_{siren}_ trouvé dans {INPI_ROOT_DIR}.")
+
+            closing_date = extract_closing_date_from_pdf_filename(selected_path)
+            if not closing_date:
+                raise SystemExit(
+                    f"Date de clôture introuvable dans le nom du PDF: {selected_path}"
+                )
+
+            text = read_pdf_text(client, selected_path)
+
+        revenue = extract_revenue_from_text(text)
+        document = FinancialDocumentMetadata(
+            siren=siren,
+            siret=get_first_siret_for_siren(sirets_by_siren, siren),
+            closing_date=closing_date,
+            filing_date=extract_filing_date_from_path(selected_path),
+            document_path=selected_path,
+            document_type=INPI_DOCUMENT_TYPE,
+            revenue=revenue,
+        )
+        status = upsert_financial_document(conn, document)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "siren": siren,
+        "document_path": selected_path,
+        "closing_date": closing_date,
+        "revenue": revenue,
+        "status": status,
+        "years_inspected": search_stats.years_inspected,
+        "files_examined": search_stats.files_examined,
+        "search_duration_seconds": search_stats.duration_seconds,
+    }
 
 
 def is_index_file(path: str) -> bool:
@@ -741,12 +927,36 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Nombre maximal de PDF correspondant à companies à traiter.",
     )
+    parser.add_argument(
+        "--siren",
+        type=validate_siren,
+        default=None,
+        help="Traite uniquement le PDF INPI le plus récent pour ce SIREN.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
     args = parse_args()
+    if args.siren:
+        summary = import_financial_document_for_siren(args.siren)
+        revenue = summary["revenue"]
+        revenue_text = revenue if revenue is not None else "non détecté"
+        print("Import ciblé terminé.")
+        print(f"SIREN: {summary['siren']}")
+        print(f"Fichier utilisé: {summary['document_path']}")
+        print(f"Date de clôture: {summary['closing_date']}")
+        print(f"Chiffre d'affaires détecté: {revenue_text}")
+        print(f"Statut: {summary['status']}")
+        print(f"Années inspectées: {summary['years_inspected']}")
+        print(f"Fichiers examinés: {summary['files_examined']}")
+        print(
+            "Durée de recherche: "
+            f"{summary['search_duration_seconds']:.2f}s"
+        )
+        return
+
     import_financial_documents(
         year=args.year,
         recursive=args.recursive,

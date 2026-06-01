@@ -94,6 +94,7 @@ Options utiles :
 python import_financial_documents.py --year 2026 --dry-run
 python import_financial_documents.py --year 2026 --limit 20
 python import_financial_documents.py --year 2026 --recursive --max-depth 2
+python import_financial_documents.py --siren 781241799
 ```
 
 Données importées quand elles sont disponibles dans un index ou dans le chemin du fichier :
