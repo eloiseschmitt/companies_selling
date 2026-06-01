@@ -166,6 +166,47 @@ class InpiSFTPDownloadTest(unittest.TestCase):
                 local_path.name,
             )
 
+    def test_does_not_redownload_existing_pdf_without_force(self) -> None:
+        client = make_client(make_entries())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            local_path = (
+                Path(temp_dir)
+                / "CA_123456789_7401_2012B00001_2025_K00003.pdf"
+            )
+            local_path.write_bytes(b"existing")
+
+            downloaded_path = client.download_latest_financial_pdf_for_siren(
+                "123456789",
+                Path(temp_dir),
+            )
+
+            self.assertEqual(local_path, downloaded_path)
+            self.assertEqual(b"existing", local_path.read_bytes())
+            assert client._sftp is not None
+            self.assertEqual([], client._sftp.downloads)
+
+    def test_redownloads_existing_pdf_with_force(self) -> None:
+        client = make_client(make_entries())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            local_path = (
+                Path(temp_dir)
+                / "CA_123456789_7401_2012B00001_2025_K00003.pdf"
+            )
+            local_path.write_bytes(b"existing")
+
+            downloaded_path = client.download_latest_financial_pdf_for_siren(
+                "123456789",
+                Path(temp_dir),
+                force=True,
+            )
+
+            self.assertEqual(local_path, downloaded_path)
+            self.assertEqual(b"%PDF-1.4", local_path.read_bytes())
+            assert client._sftp is not None
+            self.assertEqual(1, len(client._sftp.downloads))
+
     def test_service_function_opens_connection_from_environment(self) -> None:
         client = make_client(make_entries())
         client.connect = lambda: None
@@ -179,6 +220,7 @@ class InpiSFTPDownloadTest(unittest.TestCase):
                 local_path = download_latest_financial_pdf_for_siren(
                     "123456789",
                     Path(temp_dir),
+                    force=True,
                 )
 
             self.assertIsNotNone(local_path)
@@ -200,9 +242,14 @@ class InpiSFTPDownloadTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             expected_path = Path("downloads") / "annual.pdf"
 
-            def fake_download(siren: str, destination_dir: Path) -> Path:
+            def fake_download(
+                siren: str,
+                destination_dir: Path,
+                force: bool = False,
+            ) -> Path:
                 self.assertEqual("123456789", siren)
                 self.assertEqual(Path("downloads"), destination_dir)
+                self.assertFalse(force)
                 self.assertTrue(destination_dir.exists())
                 return expected_path
 
@@ -227,9 +274,14 @@ class InpiSFTPDownloadTest(unittest.TestCase):
             destination = Path(temp_dir) / "custom-downloads"
             expected_path = destination / "annual.pdf"
 
-            def fake_download(siren: str, destination_dir: Path) -> Path:
+            def fake_download(
+                siren: str,
+                destination_dir: Path,
+                force: bool = False,
+            ) -> Path:
                 self.assertEqual("123456789", siren)
                 self.assertEqual(destination, destination_dir)
+                self.assertFalse(force)
                 self.assertTrue(destination_dir.exists())
                 return expected_path
 
@@ -241,6 +293,39 @@ class InpiSFTPDownloadTest(unittest.TestCase):
                     "123456789",
                     "--destination",
                     str(destination),
+                ],
+            ), patch(
+                "services.inpi_sftp.download_latest_financial_pdf_for_siren",
+                side_effect=fake_download,
+            ), patch("builtins.print") as print_mock:
+                inpi_sftp.main()
+
+            print_mock.assert_called_once_with(f"PDF téléchargé: {expected_path}")
+
+    def test_cli_passes_force_option(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            destination = Path(temp_dir) / "downloads"
+            expected_path = destination / "annual.pdf"
+
+            def fake_download(
+                siren: str,
+                destination_dir: Path,
+                force: bool = False,
+            ) -> Path:
+                self.assertEqual("123456789", siren)
+                self.assertEqual(destination, destination_dir)
+                self.assertTrue(force)
+                return expected_path
+
+            with patch(
+                "sys.argv",
+                [
+                    "inpi_sftp.py",
+                    "--siren",
+                    "123456789",
+                    "--destination",
+                    str(destination),
+                    "--force",
                 ],
             ), patch(
                 "services.inpi_sftp.download_latest_financial_pdf_for_siren",

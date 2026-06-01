@@ -177,11 +177,20 @@ class InpiSFTPClient:
 
         return content
 
-    def download_file(self, remote_path: str, local_path: Path) -> Path:
+    def download_file(
+        self,
+        remote_path: str,
+        local_path: Path,
+        force: bool = False,
+    ) -> Path:
         if self._sftp is None:
             raise RuntimeError("La connexion SFTP INPI n'est pas ouverte.")
 
         local_path.parent.mkdir(parents=True, exist_ok=True)
+        if local_path.exists() and not force:
+            logger.info("Fichier déjà présent localement: %s", local_path)
+            return local_path
+
         try:
             self._sftp.get(remote_path, str(local_path))
         except Exception:
@@ -199,6 +208,7 @@ class InpiSFTPClient:
         self,
         siren: str,
         destination_dir: Path,
+        force: bool = False,
     ) -> Path | None:
         """Télécharge le PDF financier INPI le plus récent pour un SIREN."""
         validate_siren(siren)
@@ -207,9 +217,9 @@ class InpiSFTPClient:
             return None
 
         local_path = destination_dir / posixpath.basename(selected_path)
-        downloaded_path = self.download_file(selected_path, local_path)
+        downloaded_path = self.download_file(selected_path, local_path, force=force)
         logger.info(
-            "PDF financier INPI téléchargé pour le SIREN %s: %s",
+            "PDF financier INPI disponible pour le SIREN %s: %s",
             siren,
             downloaded_path,
         )
@@ -362,11 +372,16 @@ def find_latest_financial_pdf_path_for_siren(
 def download_latest_financial_pdf_for_siren(
     siren: str,
     destination_dir: Path,
+    force: bool = False,
 ) -> Path | None:
     """Ouvre le SFTP INPI et télécharge le dernier PDF financier du SIREN."""
     client = InpiSFTPClient.from_environment()
     with client:
-        return client.download_latest_financial_pdf_for_siren(siren, destination_dir)
+        return client.download_latest_financial_pdf_for_siren(
+            siren,
+            destination_dir,
+            force=force,
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -385,6 +400,11 @@ def parse_args() -> argparse.Namespace:
         default=Path("downloads"),
         help="Dossier local de destination. Par défaut: ./downloads.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Retélécharge le PDF même s'il existe déjà localement.",
+    )
     return parser.parse_args()
 
 
@@ -396,6 +416,7 @@ def main() -> None:
     downloaded_path = download_latest_financial_pdf_for_siren(
         args.siren,
         destination_dir,
+        force=args.force,
     )
     if downloaded_path is None:
         print(f"Aucun PDF de comptes annuels trouvé pour le SIREN {args.siren}.")
