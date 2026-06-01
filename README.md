@@ -139,6 +139,7 @@ Exemples :
 - `populate_naf_db.py` : alimentation de la table `naf_code`
 - `retrieve_siren_companies.py` : import des entreprises dans `companies.db`
 - `init_financial_documents.py` : création de la table `financial_documents`
+- `import_financial_documents.py` : import des métadonnées de documents financiers depuis le SFTP INPI
 - `generate_companies_html.py` : génération de `companies.html` en statique
 
 ## Services

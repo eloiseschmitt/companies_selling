@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from stat import S_ISDIR
 
 import paramiko
 
@@ -103,6 +104,47 @@ class InpiSFTPClient:
             )
             raise
 
+    def list_entries(self, remote_path: str = ".") -> list[paramiko.SFTPAttributes]:
+        if self._sftp is None:
+            raise RuntimeError("La connexion SFTP INPI n'est pas ouverte.")
+
+        try:
+            return self._sftp.listdir_attr(remote_path)
+        except Exception:
+            logger.exception(
+                "Erreur lors du listage SFTP INPI du dossier %s pour %s@%s",
+                remote_path,
+                self.username,
+                self.host,
+            )
+            raise
+
+    def read_text_file(
+        self,
+        remote_path: str,
+        max_bytes: int = 10_000_000,
+        encoding: str = "utf-8",
+    ) -> str:
+        if self._sftp is None:
+            raise RuntimeError("La connexion SFTP INPI n'est pas ouverte.")
+
+        try:
+            with self._sftp.open(remote_path, "rb") as remote_file:
+                content = remote_file.read(max_bytes + 1)
+        except Exception:
+            logger.exception(
+                "Erreur lors de la lecture SFTP INPI du fichier %s pour %s@%s",
+                remote_path,
+                self.username,
+                self.host,
+            )
+            raise
+
+        if len(content) > max_bytes:
+            raise ValueError(f"Fichier distant trop volumineux: {remote_path}")
+
+        return content.decode(encoding, errors="replace")
+
     def close(self) -> None:
         if self._sftp is not None:
             self._sftp.close()
@@ -125,3 +167,8 @@ def list_available_files(remote_path: str = ".") -> list[str]:
     client = InpiSFTPClient.from_environment()
     with client:
         return client.list_files(remote_path)
+
+
+def is_directory(entry: paramiko.SFTPAttributes) -> bool:
+    """Retourne True si l'entrée SFTP est un dossier."""
+    return entry.st_mode is not None and S_ISDIR(entry.st_mode)
