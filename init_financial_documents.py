@@ -127,6 +127,80 @@ def find_latest_ca_pdf_for_siren(siren: str) -> str | None:
     return None
 
 
+def get_siret_for_siren(conn: sqlite3.Connection, siren: str) -> str | None:
+    try:
+        row = conn.execute(
+            """
+            SELECT siret
+            FROM companies
+            WHERE siret IS NOT NULL AND SUBSTR(siret, 1, 9) = ?
+            ORDER BY siret
+            LIMIT 1
+            """,
+            (siren,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+
+    if row is None:
+        return None
+    return row[0]
+
+
+def process_latest_pdf_for_siren(siren: str) -> dict[str, object]:
+    from import_financial_documents import (
+        INPI_DOCUMENT_TYPE,
+        FinancialDocumentMetadata,
+        extract_closing_date_from_pdf_filename,
+        extract_filing_date_from_path,
+        extract_revenue_from_text,
+        extract_text_from_pdf_bytes,
+        upsert_financial_document,
+    )
+
+    selected_path = find_latest_ca_pdf_for_siren(siren)
+    if not selected_path:
+        raise SystemExit(f"Aucun PDF CA_{siren}_ trouvé dans {INPI_ROOT_DIR}.")
+
+    closing_date = extract_closing_date_from_pdf_filename(selected_path)
+    if not closing_date:
+        raise SystemExit(
+            f"Date de clôture introuvable dans le nom du PDF: {selected_path}"
+        )
+
+    with InpiSFTPClient.from_environment() as client:
+        pdf_content = client.read_binary_file(selected_path)
+
+    text = extract_text_from_pdf_bytes(pdf_content)
+    revenue = extract_revenue_from_text(text)
+
+    conn = sqlite3.connect(DATABASE_FILE)
+    try:
+        create_financial_documents_table(conn)
+        document = FinancialDocumentMetadata(
+            siren=siren,
+            siret=get_siret_for_siren(conn, siren),
+            closing_date=closing_date,
+            filing_date=extract_filing_date_from_path(selected_path),
+            document_path=selected_path,
+            document_type=INPI_DOCUMENT_TYPE,
+            revenue=revenue,
+        )
+        status = upsert_financial_document(conn, document)
+        conn.commit()
+    finally:
+        conn.close()
+
+    logger.info("PDF INPI traité pour le SIREN %s: %s", siren, selected_path)
+    return {
+        "siren": siren,
+        "document_path": selected_path,
+        "closing_date": closing_date,
+        "revenue": revenue,
+        "status": status,
+    }
+
+
 def create_financial_documents_table(conn: sqlite3.Connection) -> None:
     """Crée la table et les index des documents financiers."""
     conn.execute(
@@ -194,12 +268,13 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
     args = parse_args()
     if args.siren:
-        selected_path = find_latest_ca_pdf_for_siren(args.siren)
-        if not selected_path:
-            raise SystemExit(
-                f"Aucun PDF CA_{args.siren}_ trouvé dans {INPI_ROOT_DIR}."
-            )
-        print(selected_path)
+        summary = process_latest_pdf_for_siren(args.siren)
+        print("Résumé import PDF INPI")
+        print(f"siren: {summary['siren']}")
+        print(f"fichier utilisé: {summary['document_path']}")
+        print(f"date de clôture: {summary['closing_date']}")
+        print(f"chiffre d'affaires détecté: {summary['revenue']}")
+        print(f"statut: {summary['status']}")
         return
 
     conn = sqlite3.connect(DATABASE_FILE)
