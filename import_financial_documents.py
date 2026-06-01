@@ -614,6 +614,7 @@ def import_financial_documents(
     max_depth: int = 2,
     dry_run: bool = False,
     max_pdfs: int | None = None,
+    limit: int | None = None,
 ) -> ImportStats:
     stats = ImportStats()
     conn = get_connection()
@@ -651,6 +652,9 @@ def import_financial_documents(
                 if siren not in company_sirens:
                     stats.documents_ignored += 1
                     continue
+
+                if limit is not None and stats.matching_sirens >= limit:
+                    break
 
                 stats.matching_sirens += 1
                 siret = get_first_siret_for_siren(sirets_by_siren, siren)
@@ -735,6 +739,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Nombre maximal de PDF à lister pendant un import de test.",
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Nombre maximal de PDF correspondant à companies à traiter.",
+    )
     return parser.parse_args()
 
 
@@ -747,6 +757,7 @@ def main() -> None:
         max_depth=args.max_depth,
         dry_run=args.dry_run,
         max_pdfs=args.max_pdfs,
+        limit=args.limit,
     )
 
 

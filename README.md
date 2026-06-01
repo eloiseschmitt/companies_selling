@@ -92,6 +92,7 @@ Options utiles :
 
 ```bash
 python import_financial_documents.py --remote-path . --dry-run
+python import_financial_documents.py --remote-path . --limit 20
 python import_financial_documents.py --remote-path . --recursive --max-depth 2
 ```
 

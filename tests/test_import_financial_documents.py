@@ -18,10 +18,14 @@ class FakeSFTPClient:
             "Bilans_PDF/2026/06": ["01"],
             "Bilans_PDF/2026/06/01": [
                 "CA_123456789_7401_2012B00001_2025_K00001",
+                "CA_123456789_7401_2012B00003_2024_K00003",
                 "CA_999999999_7401_2012B00002_2025_K00002",
             ],
             "Bilans_PDF/2026/06/01/CA_123456789_7401_2012B00001_2025_K00001": [
                 "CA_123456789_7401_2012B00001_2025_K00001.pdf"
+            ],
+            "Bilans_PDF/2026/06/01/CA_123456789_7401_2012B00003_2024_K00003": [
+                "CA_123456789_7401_2012B00003_2024_K00003.pdf"
             ],
             "Bilans_PDF/2026/06/01/CA_999999999_7401_2012B00002_2025_K00002": [
                 "CA_999999999_7401_2012B00002_2025_K00002.pdf"
@@ -119,12 +123,40 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         finally:
             conn.close()
 
-        self.assertEqual(2, stats.files_scanned)
-        self.assertEqual(1, stats.matching_sirens)
+        self.assertEqual(3, stats.files_scanned)
+        self.assertEqual(2, stats.matching_sirens)
         self.assertEqual(1, stats.documents_ignored)
-        self.assertEqual(1, stats.documents_inserted)
+        self.assertEqual(2, stats.documents_inserted)
         self.assertEqual("123456789", rows[0]["siren"])
         self.assertEqual("12345", str(rows[0]["revenue"]))
+
+    def test_limit_only_processes_matching_company_pdfs(self) -> None:
+        self.create_companies(["12345678900012"])
+        fake_sftp = FakeSFTPClient()
+
+        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
+            importer.InpiSFTPClient,
+            "from_environment",
+            return_value=fake_sftp,
+        ), patch.object(
+            importer,
+            "read_pdf_text",
+            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        ) as read_pdf_text:
+            stats = importer.import_financial_documents(limit=1)
+
+        conn = self.connect()
+        try:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM financial_documents"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+        self.assertEqual(1, stats.matching_sirens)
+        self.assertEqual(1, stats.documents_inserted)
+        self.assertEqual(1, count)
+        self.assertEqual(1, read_pdf_text.call_count)
 
     def test_extracts_revenue_from_matching_line(self) -> None:
         text = "Produits\nCHIFFRES D'AFFAIRES NETS 1 000 2 345 678\nCharges"
