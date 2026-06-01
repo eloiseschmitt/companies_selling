@@ -141,6 +141,10 @@ Exemples :
 - `init_financial_documents.py` : création de la table `financial_documents`
 - `generate_companies_html.py` : génération de `companies.html` en statique
 
+## Services
+
+- `services/inpi_sftp.py` : connexion au SFTP INPI et listage des fichiers disponibles à partir de `SFTP_HOST`, `SFTP_USER` et `SFTP_PASSWORD`
+
 ## Fichiers importants
 
 - `companies.db` : base SQLite locale
