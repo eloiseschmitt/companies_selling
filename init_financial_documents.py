@@ -5,6 +5,8 @@ import logging
 import posixpath
 import re
 import sqlite3
+from dataclasses import dataclass
+from time import perf_counter
 
 from services.inpi_sftp import InpiSFTPClient, is_directory
 
@@ -13,6 +15,13 @@ DATABASE_FILE = "companies.db"
 INPI_ROOT_DIR = "Bilans_PDF"
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SirenSearchStats:
+    years_inspected: int = 0
+    files_examined: int = 0
+    duration_seconds: float = 0.0
 
 
 def validate_siren(value: str) -> str:
@@ -62,22 +71,26 @@ def find_ca_pdf_candidates_for_year(
     client: InpiSFTPClient,
     year: str,
     siren: str,
+    stats: SirenSearchStats,
 ) -> list[str]:
     candidates = []
     prefix = f"CA_{siren}_"
     year_path = remote_join(INPI_ROOT_DIR, year)
 
     for month_entry in reversed(list_sorted_entries(client, year_path)):
+        stats.files_examined += 1
         if not is_directory(month_entry):
             continue
 
         month_path = remote_join(year_path, month_entry.filename)
         for day_entry in reversed(list_sorted_entries(client, month_path)):
+            stats.files_examined += 1
             if not is_directory(day_entry):
                 continue
 
             day_path = remote_join(month_path, day_entry.filename)
-            for document_entry in list_sorted_entries(client, day_path):
+            for document_entry in reversed(list_sorted_entries(client, day_path)):
+                stats.files_examined += 1
                 document_path = remote_join(day_path, document_entry.filename)
                 if not document_entry.filename.startswith(prefix):
                     continue
@@ -88,6 +101,7 @@ def find_ca_pdf_candidates_for_year(
                     continue
 
                 for file_entry in list_sorted_entries(client, document_path):
+                    stats.files_examined += 1
                     is_matching_pdf = (
                         file_entry.filename.startswith(prefix)
                         and file_entry.filename.endswith(".pdf")
@@ -107,24 +121,45 @@ def select_latest_ca_pdf(paths: list[str], siren: str) -> str:
     )
 
 
-def find_latest_ca_pdf_for_siren(siren: str) -> str | None:
+def find_latest_ca_pdf_for_siren(
+    siren: str,
+) -> tuple[str | None, SirenSearchStats]:
+    stats = SirenSearchStats()
+    started_at = perf_counter()
     with InpiSFTPClient.from_environment() as client:
         for year in get_available_years(client):
+            stats.years_inspected += 1
             logger.info(
                 "Recherche des PDF CA_%s_ dans %s/%s",
                 siren,
                 INPI_ROOT_DIR,
                 year,
             )
-            candidates = find_ca_pdf_candidates_for_year(client, year, siren)
+            candidates = find_ca_pdf_candidates_for_year(client, year, siren, stats)
             if not candidates:
                 continue
 
             selected_path = select_latest_ca_pdf(candidates, siren)
+            stats.duration_seconds = perf_counter() - started_at
             logger.info("PDF INPI trouvé pour le SIREN %s: %s", siren, selected_path)
-            return selected_path
+            logger.info(
+                "Recherche SIREN terminée: années inspectées=%s, "
+                "fichiers examinés=%s, durée=%.2fs",
+                stats.years_inspected,
+                stats.files_examined,
+                stats.duration_seconds,
+            )
+            return selected_path, stats
 
-    return None
+    stats.duration_seconds = perf_counter() - started_at
+    logger.info(
+        "Recherche SIREN terminée sans résultat: années inspectées=%s, "
+        "fichiers examinés=%s, durée=%.2fs",
+        stats.years_inspected,
+        stats.files_examined,
+        stats.duration_seconds,
+    )
+    return None, stats
 
 
 def get_siret_for_siren(conn: sqlite3.Connection, siren: str) -> str | None:
@@ -158,7 +193,7 @@ def process_latest_pdf_for_siren(siren: str) -> dict[str, object]:
         upsert_financial_document,
     )
 
-    selected_path = find_latest_ca_pdf_for_siren(siren)
+    selected_path, search_stats = find_latest_ca_pdf_for_siren(siren)
     if not selected_path:
         raise SystemExit(f"Aucun PDF CA_{siren}_ trouvé dans {INPI_ROOT_DIR}.")
 
@@ -198,6 +233,9 @@ def process_latest_pdf_for_siren(siren: str) -> dict[str, object]:
         "closing_date": closing_date,
         "revenue": revenue,
         "status": status,
+        "years_inspected": search_stats.years_inspected,
+        "files_examined": search_stats.files_examined,
+        "search_duration_seconds": search_stats.duration_seconds,
     }
 
 
@@ -275,6 +313,9 @@ def main() -> None:
         print(f"date de clôture: {summary['closing_date']}")
         print(f"chiffre d'affaires détecté: {summary['revenue']}")
         print(f"statut: {summary['status']}")
+        print(f"années inspectées: {summary['years_inspected']}")
+        print(f"fichiers examinés: {summary['files_examined']}")
+        print(f"durée recherche: {summary['search_duration_seconds']:.2f}s")
         return
 
     conn = sqlite3.connect(DATABASE_FILE)

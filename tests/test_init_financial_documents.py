@@ -97,7 +97,7 @@ class InitFinancialDocumentsTest(unittest.TestCase):
             "from_environment",
             return_value=fake_sftp,
         ):
-            path = init_documents.find_latest_ca_pdf_for_siren("781241799")
+            path, stats = init_documents.find_latest_ca_pdf_for_siren("781241799")
 
         self.assertEqual(
             (
@@ -107,6 +107,9 @@ class InitFinancialDocumentsTest(unittest.TestCase):
             ),
             path,
         )
+        self.assertEqual(2, stats.years_inspected)
+        self.assertGreater(stats.files_examined, 0)
+        self.assertGreaterEqual(stats.duration_seconds, 0)
 
     def test_process_latest_pdf_for_siren_inserts_financial_document(self) -> None:
         self.create_companies()
@@ -142,6 +145,8 @@ class InitFinancialDocumentsTest(unittest.TestCase):
         self.assertEqual("2025", summary["closing_date"])
         self.assertEqual("inserted", summary["status"])
         self.assertEqual("98765", str(summary["revenue"]))
+        self.assertEqual(2, summary["years_inspected"])
+        self.assertGreater(summary["files_examined"], 0)
         self.assertEqual("781241799", row["siren"])
         self.assertEqual("78124179900012", row["siret"])
         self.assertEqual("2025", row["closing_date"])
