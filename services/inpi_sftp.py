@@ -271,22 +271,38 @@ def get_available_financial_years(client: InpiSFTPClient) -> list[str]:
     return sorted(years, reverse=True)
 
 
-def parse_financial_pdf_sort_key(filename: str, siren: str) -> tuple[int, tuple]:
+def parse_financial_pdf_filename(filename: str) -> dict[str, str] | None:
     match = re.match(
         r"^CA_(?P<siren>\d{9})_(?P<greffe>[^_]+)_(?P<gestion>[^_]+)_"
         r"(?P<closing_year>\d{4})_(?P<chrono>[^.]+)\.pdf$",
         filename,
         flags=re.IGNORECASE,
     )
-    if not match or match.group("siren") != siren:
+    if not match:
+        return None
+    return match.groupdict()
+
+
+def parse_financial_pdf_sort_key(filename: str) -> tuple[int, tuple]:
+    parsed = parse_financial_pdf_filename(filename)
+    if parsed is None:
         return 0, ()
 
     chrono_key = tuple(
         (1, int(part)) if part.isdigit() else (0, part)
-        for part in re.split(r"(\d+)", match.group("chrono"))
+        for part in re.split(r"(\d+)", parsed["chrono"])
         if part
     )
-    return int(match.group("closing_year")), chrono_key
+    return int(parsed["closing_year"]), chrono_key
+
+
+def select_latest_financial_pdf_filename(filenames: list[str]) -> str | None:
+    valid_filenames = [
+        filename for filename in filenames if parse_financial_pdf_filename(filename)
+    ]
+    if not valid_filenames:
+        return None
+    return max(valid_filenames, key=parse_financial_pdf_sort_key)
 
 
 def find_financial_pdf_candidates_in_year(
@@ -323,13 +339,14 @@ def find_latest_financial_pdf_path_for_siren(
     for year in get_available_financial_years(client):
         candidates = find_financial_pdf_candidates_in_year(client, year, siren)
         if candidates:
-            return max(
-                candidates,
-                key=lambda path: parse_financial_pdf_sort_key(
-                    posixpath.basename(path),
-                    siren,
-                ),
+            candidates_by_filename = {
+                posixpath.basename(path): path for path in candidates
+            }
+            selected_filename = select_latest_financial_pdf_filename(
+                list(candidates_by_filename)
             )
+            if selected_filename is not None:
+                return candidates_by_filename[selected_filename]
     return None
 
 

@@ -9,6 +9,7 @@ from services.inpi_sftp import (
     InpiSFTPClient,
     download_latest_financial_pdf_for_siren,
     find_latest_financial_pdf_path_for_siren,
+    select_latest_financial_pdf_filename,
     validate_siren,
 )
 
@@ -76,6 +77,57 @@ class InpiSFTPDownloadTest(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     validate_siren(value)
+
+    def test_selects_latest_financial_pdf_filename_by_closing_year(self) -> None:
+        selected = select_latest_financial_pdf_filename(
+            [
+                "CA_123456789_7401_2012B00001_2023_K99999.pdf",
+                "CA_123456789_7401_2012B00001_2025_K00001.pdf",
+                "CA_123456789_7401_2012B00001_2024_K99999.pdf",
+            ]
+        )
+
+        self.assertEqual(
+            "CA_123456789_7401_2012B00001_2025_K00001.pdf",
+            selected,
+        )
+
+    def test_selects_latest_financial_pdf_filename_by_chrono(self) -> None:
+        selected = select_latest_financial_pdf_filename(
+            [
+                "CA_123456789_7401_2012B00001_2025_K00001.pdf",
+                "CA_123456789_7401_2012B00001_2025_K00011.pdf",
+                "CA_123456789_7401_2012B00001_2025_K00002.pdf",
+            ]
+        )
+
+        self.assertEqual(
+            "CA_123456789_7401_2012B00001_2025_K00011.pdf",
+            selected,
+        )
+
+    def test_select_latest_financial_pdf_filename_ignores_invalid_names(self) -> None:
+        selected = select_latest_financial_pdf_filename(
+            [
+                "not-a-financial-document.pdf",
+                "CA_12345678_7401_2012B00001_2026_K99999.pdf",
+                "CA_123456789_7401_2012B00001_2025_K00001.pdf",
+            ]
+        )
+
+        self.assertEqual(
+            "CA_123456789_7401_2012B00001_2025_K00001.pdf",
+            selected,
+        )
+
+    def test_select_latest_financial_pdf_filename_returns_none_without_valid_file(
+        self,
+    ) -> None:
+        selected = select_latest_financial_pdf_filename(
+            ["not-a-financial-document.pdf"]
+        )
+
+        self.assertIsNone(selected)
 
     def test_finds_latest_financial_pdf_for_siren(self) -> None:
         client = make_client(make_entries())
