@@ -114,8 +114,8 @@ class InpiAnnualAccountsClientTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             client.get_company_attachments("123")
 
-    def test_known_http_errors_raise_clear_exception(self) -> None:
-        for status_code in (400, 401, 403, 429, 500):
+    def test_non_retryable_http_errors_raise_clear_exception(self) -> None:
+        for status_code in (400, 403):
             with self.subTest(status_code=status_code):
                 session = Mock()
                 session.get.return_value = make_response(
@@ -134,6 +134,98 @@ class InpiAnnualAccountsClientTest(unittest.TestCase):
                     HTTP_ERROR_MESSAGES[status_code],
                     str(raised.exception),
                 )
+                self.assertEqual(1, session.get.call_count)
+
+    def test_http_error_log_does_not_include_response_body_secrets(self) -> None:
+        session = Mock()
+        session.get.return_value = make_response(
+            status_code=403,
+            text="token=secret-token password=secret-password",
+        )
+        client = InpiAnnualAccountsClient(session=session)
+        client.token = "secret-token"
+
+        with patch("services.inpi_annual_accounts.logger.error") as log_error:
+            with self.assertRaises(InpiApiError):
+                client.get_company_attachments("123456789")
+
+        logged_text = " ".join(str(value) for value in log_error.call_args.args)
+        self.assertNotIn("secret-token", logged_text)
+        self.assertNotIn("secret-password", logged_text)
+
+    def test_retries_429_with_exponential_backoff(self) -> None:
+        session = Mock()
+        session.get.side_effect = [
+            make_response(status_code=429, text="rate limited"),
+            make_response(status_code=429, text="rate limited"),
+            make_response(payload={"attachments": []}),
+        ]
+        client = InpiAnnualAccountsClient(
+            session=session,
+            retry_attempts=3,
+            backoff_seconds=0.25,
+        )
+        client.token = "abc-token"
+
+        with patch("services.inpi_annual_accounts.time.sleep") as sleep_mock:
+            attachments = client.get_company_attachments("123456789")
+
+        self.assertEqual({"attachments": []}, attachments)
+        self.assertEqual(3, session.get.call_count)
+        self.assertEqual(
+            [call.args[0] for call in sleep_mock.call_args_list],
+            [0.25, 0.5],
+        )
+
+    def test_retries_500_with_exponential_backoff(self) -> None:
+        session = Mock()
+        session.get.side_effect = [
+            make_response(status_code=500, text="server error"),
+            make_response(payload={"attachments": []}),
+        ]
+        client = InpiAnnualAccountsClient(
+            session=session,
+            retry_attempts=3,
+            backoff_seconds=0.5,
+        )
+        client.token = "abc-token"
+
+        with patch("services.inpi_annual_accounts.time.sleep") as sleep_mock:
+            attachments = client.get_company_attachments("123456789")
+
+        self.assertEqual({"attachments": []}, attachments)
+        self.assertEqual(2, session.get.call_count)
+        sleep_mock.assert_called_once_with(0.5)
+
+    def test_401_reauthenticates_once_and_replays_request(self) -> None:
+        session = Mock()
+        session.get.side_effect = [
+            make_response(status_code=401, text="expired token"),
+            make_response(payload={"attachments": []}),
+        ]
+        session.post.return_value = make_response(payload={"token": "new-token"})
+        client = InpiAnnualAccountsClient(session=session)
+        client.token = "old-token"
+
+        with patch.dict(
+            os.environ,
+            {"SFTP_USER": "demo-user", "SFTP_PASSWORD": "demo-password"},
+            clear=True,
+        ):
+            attachments = client.get_company_attachments("123456789")
+
+        self.assertEqual({"attachments": []}, attachments)
+        self.assertEqual("new-token", client.token)
+        self.assertEqual(2, session.get.call_count)
+        session.post.assert_called_once_with(
+            LOGIN_URL,
+            json={"username": "demo-user", "password": "demo-password"},
+            timeout=30,
+        )
+        first_headers = session.get.call_args_list[0].kwargs["headers"]
+        second_headers = session.get.call_args_list[1].kwargs["headers"]
+        self.assertEqual({"Authorization": "Bearer old-token"}, first_headers)
+        self.assertEqual({"Authorization": "Bearer new-token"}, second_headers)
 
     def test_invalid_json_response_raises_api_error(self) -> None:
         response = make_response(status_code=200)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,9 @@ from dotenv import load_dotenv
 LOGIN_URL = "https://registre-national-entreprises.inpi.fr/api/sso/login"
 API_BASE_URL = "https://registre-national-entreprises.inpi.fr/api"
 DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_RETRY_ATTEMPTS = 3
+DEFAULT_BACKOFF_SECONDS = 0.5
+RETRYABLE_STATUS_CODES = {429, 500}
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +95,13 @@ class InpiAnnualAccountsClient:
         self,
         session: requests.Session | None = None,
         timeout: int = DEFAULT_TIMEOUT_SECONDS,
+        retry_attempts: int = DEFAULT_RETRY_ATTEMPTS,
+        backoff_seconds: float = DEFAULT_BACKOFF_SECONDS,
     ) -> None:
         self.session = session or requests.Session()
         self.timeout = timeout
+        self.retry_attempts = retry_attempts
+        self.backoff_seconds = backoff_seconds
         self.token: str | None = None
 
     def authenticate(self) -> str:
@@ -106,10 +114,11 @@ class InpiAnnualAccountsClient:
                 "Variables d'environnement SFTP_USER et SFTP_PASSWORD requises."
             )
 
-        response = self.session.post(
+        response = self._request(
+            "post",
             LOGIN_URL,
             json={"username": username, "password": password},
-            timeout=self.timeout,
+            authenticated=False,
         )
         self._raise_for_known_http_error(response)
 
@@ -124,26 +133,18 @@ class InpiAnnualAccountsClient:
     def get_company_attachments(self, siren: str) -> dict[str, Any] | list[Any]:
         """Retourne les pièces jointes INPI associées au SIREN."""
         validate_siren(siren)
-        if self.token is None:
-            self.authenticate()
-
-        response = self.session.get(
+        response = self._request(
+            "get",
             f"{API_BASE_URL}/companies/{siren}/attachments",
-            headers={"Authorization": f"Bearer {self.token}"},
-            timeout=self.timeout,
         )
         self._raise_for_known_http_error(response)
         return self._json_payload(response)
 
     def download_bilan_pdf(self, bilan_id: str, output_path: Path) -> Path:
         """Télécharge un bilan PDF INPI vers le chemin local demandé."""
-        if self.token is None:
-            self.authenticate()
-
-        response = self.session.get(
+        response = self._request(
+            "get",
             f"{API_BASE_URL}/bilans/{bilan_id}/download",
-            headers={"Authorization": f"Bearer {self.token}"},
-            timeout=self.timeout,
         )
         self._raise_for_known_http_error(response)
 
@@ -151,11 +152,70 @@ class InpiAnnualAccountsClient:
         if not content:
             raise InpiDownloadError("Le bilan PDF INPI téléchargé est vide.")
         if not content.startswith(b"%PDF"):
-            raise InpiDownloadError("Le bilan INPI téléchargé n'est pas un PDF valide.")
+            raise InpiDownloadError(
+                "Le bilan INPI téléchargé n'est pas un PDF valide."
+            )
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(content)
         return output_path
+
+    def _request(
+        self,
+        method: str,
+        url: str,
+        authenticated: bool = True,
+        allow_reauth: bool = True,
+        **kwargs,
+    ) -> requests.Response:
+        if authenticated and self.token is None:
+            self.authenticate()
+
+        request_kwargs = dict(kwargs)
+        request_kwargs["timeout"] = self.timeout
+        if authenticated:
+            headers = dict(request_kwargs.get("headers") or {})
+            headers["Authorization"] = f"Bearer {self.token}"
+            request_kwargs["headers"] = headers
+
+        attempts = max(1, self.retry_attempts)
+        for attempt in range(1, attempts + 1):
+            response = getattr(self.session, method)(url, **request_kwargs)
+            if response.status_code == 401 and authenticated and allow_reauth:
+                logger.warning(
+                    "Authentification INPI expirée pour %s %s, nouvelle tentative.",
+                    method.upper(),
+                    url,
+                )
+                self.authenticate()
+                return self._request(
+                    method,
+                    url,
+                    authenticated=authenticated,
+                    allow_reauth=False,
+                    **kwargs,
+                )
+
+            should_retry = (
+                response.status_code in RETRYABLE_STATUS_CODES
+                and attempt < attempts
+            )
+            if not should_retry:
+                return response
+
+            delay = self.backoff_seconds * (2 ** (attempt - 1))
+            logger.warning(
+                "Réponse INPI %s pour %s %s, retry %s/%s dans %.2fs.",
+                response.status_code,
+                method.upper(),
+                url,
+                attempt + 1,
+                attempts,
+                delay,
+            )
+            time.sleep(delay)
+
+        return response
 
     def _raise_for_known_http_error(self, response: requests.Response) -> None:
         if response.status_code < 400:
@@ -165,7 +225,7 @@ class InpiAnnualAccountsClient:
             response.status_code,
             f"Erreur HTTP INPI {response.status_code}.",
         )
-        logger.error("%s Réponse: %s", message, response.text)
+        logger.error("%s Statut HTTP: %s", message, response.status_code)
         raise InpiApiError(response.status_code, message)
 
     def _json_payload(self, response: requests.Response) -> dict[str, Any] | list[Any]:
