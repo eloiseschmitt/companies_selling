@@ -11,9 +11,11 @@ class FakeInpiAnnualAccountsClient:
     def __init__(self, attachments_by_siren, errors_by_siren=None) -> None:
         self.attachments_by_siren = attachments_by_siren
         self.errors_by_siren = errors_by_siren or {}
+        self.attachments_calls: list[str] = []
         self.downloads: list[tuple[str, Path]] = []
 
     def get_company_attachments(self, siren: str):
+        self.attachments_calls.append(siren)
         if siren in self.errors_by_siren:
             raise self.errors_by_siren[siren]
         return self.attachments_by_siren[siren]
@@ -209,6 +211,134 @@ class DownloadAnnualAccountsTest(unittest.TestCase):
             )
 
         sleep_mock.assert_called_once_with(0.5)
+
+    def test_resume_skips_final_statuses_and_retries_errors(self) -> None:
+        client = FakeInpiAnnualAccountsClient(
+            {
+                "222222222": {
+                    "bilans": [
+                        {
+                            "id": "retry",
+                            "confidentiality": "Public",
+                            "deleted": False,
+                            "dateDepot": "2025-01-01",
+                        }
+                    ]
+                },
+                "333333333": {"bilans": []},
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "input.csv"
+            results_path = temp_path / "results.csv"
+            input_path.write_text(
+                "siren\n111111111\n222222222\n333333333\n",
+                encoding="utf-8",
+            )
+            results_path.write_text(
+                "siren,status,bilan_id,date_cloture,date_depot,"
+                "confidentiality,type_bilan,filename,message\n"
+                "111111111,downloaded,done,,,,,done.pdf,\n"
+                "222222222,error,,,,,,,previous failure\n",
+                encoding="utf-8",
+            )
+
+            downloader.download_annual_accounts(
+                input_path,
+                output_dir=temp_path / "downloads",
+                results_path=results_path,
+                sleep_seconds=0,
+                client=client,
+            )
+            rows = read_result_rows(results_path)
+
+        self.assertEqual(
+            ["downloaded", "downloaded", "not_found"],
+            [row["status"] for row in rows],
+        )
+        self.assertEqual(["222222222", "333333333"], client.attachments_calls)
+
+    def test_force_reprocesses_final_statuses(self) -> None:
+        client = FakeInpiAnnualAccountsClient(
+            {
+                "111111111": {
+                    "bilans": [
+                        {
+                            "id": "new",
+                            "confidentiality": "Public",
+                            "deleted": False,
+                            "dateDepot": "2025-01-01",
+                        }
+                    ]
+                }
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "input.csv"
+            results_path = temp_path / "results.csv"
+            input_path.write_text("siren\n111111111\n", encoding="utf-8")
+            results_path.write_text(
+                "siren,status,bilan_id,date_cloture,date_depot,"
+                "confidentiality,type_bilan,filename,message\n"
+                "111111111,downloaded,old,,,,,old.pdf,\n",
+                encoding="utf-8",
+            )
+
+            downloader.download_annual_accounts(
+                input_path,
+                output_dir=temp_path / "downloads",
+                results_path=results_path,
+                sleep_seconds=0,
+                force=True,
+                client=client,
+            )
+            rows = read_result_rows(results_path)
+
+        self.assertEqual("new", rows[0]["bilan_id"])
+        self.assertEqual(["111111111"], client.attachments_calls)
+
+    def test_does_not_redownload_existing_non_empty_pdf(self) -> None:
+        client = FakeInpiAnnualAccountsClient(
+            {
+                "123456789": {
+                    "bilans": [
+                        {
+                            "id": "existing",
+                            "confidentiality": "Public",
+                            "deleted": False,
+                            "dateDepot": "2025-01-01",
+                        }
+                    ]
+                }
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "input.csv"
+            output_dir = temp_path / "downloads"
+            results_path = temp_path / "results.csv"
+            existing_pdf = output_dir / "123456789" / "existing.pdf"
+            existing_pdf.parent.mkdir(parents=True)
+            existing_pdf.write_bytes(b"%PDF already here")
+            input_path.write_text("siren\n123456789\n", encoding="utf-8")
+
+            downloader.download_annual_accounts(
+                input_path,
+                output_dir=output_dir,
+                results_path=results_path,
+                sleep_seconds=0,
+                client=client,
+            )
+            rows = read_result_rows(results_path)
+
+        self.assertEqual("downloaded", rows[0]["status"])
+        self.assertEqual("existing.pdf", rows[0]["filename"])
+        self.assertEqual([], client.downloads)
 
 
 if __name__ == "__main__":
