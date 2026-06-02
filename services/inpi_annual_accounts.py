@@ -1,0 +1,120 @@
+"""Client HTTP pour l'API INPI des comptes annuels."""
+
+from __future__ import annotations
+
+import logging
+import os
+import re
+from typing import Any
+
+import requests
+from dotenv import load_dotenv
+
+
+LOGIN_URL = "https://registre-national-entreprises.inpi.fr/api/sso/login"
+API_BASE_URL = "https://registre-national-entreprises.inpi.fr/api"
+DEFAULT_TIMEOUT_SECONDS = 30
+
+logger = logging.getLogger(__name__)
+
+
+class MissingInpiCredentialsError(RuntimeError):
+    """Erreur levée quand les identifiants INPI sont absents."""
+
+
+class InpiApiError(RuntimeError):
+    """Erreur levée quand l'API INPI retourne une réponse HTTP en erreur."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class InpiAuthenticationError(RuntimeError):
+    """Erreur levée quand l'authentification INPI échoue."""
+
+
+HTTP_ERROR_MESSAGES = {
+    400: "Requête INPI invalide.",
+    401: "Authentification INPI refusée.",
+    403: "Accès INPI interdit.",
+    429: "Limite de requêtes INPI atteinte.",
+    500: "Erreur interne de l'API INPI.",
+}
+
+
+def validate_siren(siren: str) -> None:
+    if not re.fullmatch(r"\d{9}", siren):
+        raise ValueError("siren doit contenir exactement 9 chiffres.")
+
+
+class InpiAnnualAccountsClient:
+    """Client minimal pour consulter les pièces jointes d'une entreprise INPI."""
+
+    def __init__(
+        self,
+        session: requests.Session | None = None,
+        timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    ) -> None:
+        self.session = session or requests.Session()
+        self.timeout = timeout
+        self.token: str | None = None
+
+    def authenticate(self) -> str:
+        """Authentifie le client et retourne le token INPI."""
+        load_dotenv()
+        username = os.getenv("SFTP_USER")
+        password = os.getenv("SFTP_PASSWORD")
+        if not username or not password:
+            raise MissingInpiCredentialsError(
+                "Variables d'environnement SFTP_USER et SFTP_PASSWORD requises."
+            )
+
+        response = self.session.post(
+            LOGIN_URL,
+            json={"username": username, "password": password},
+            timeout=self.timeout,
+        )
+        self._raise_for_known_http_error(response)
+
+        payload = self._json_payload(response)
+        token = payload.get("token")
+        if not token:
+            raise InpiAuthenticationError("Token INPI absent de la réponse de login.")
+
+        self.token = str(token)
+        return self.token
+
+    def get_company_attachments(self, siren: str) -> dict[str, Any] | list[Any]:
+        """Retourne les pièces jointes INPI associées au SIREN."""
+        validate_siren(siren)
+        if self.token is None:
+            self.authenticate()
+
+        response = self.session.get(
+            f"{API_BASE_URL}/companies/{siren}/attachments",
+            headers={"Authorization": f"Bearer {self.token}"},
+            timeout=self.timeout,
+        )
+        self._raise_for_known_http_error(response)
+        return self._json_payload(response)
+
+    def _raise_for_known_http_error(self, response: requests.Response) -> None:
+        if response.status_code < 400:
+            return
+
+        message = HTTP_ERROR_MESSAGES.get(
+            response.status_code,
+            f"Erreur HTTP INPI {response.status_code}.",
+        )
+        logger.error("%s Réponse: %s", message, response.text)
+        raise InpiApiError(response.status_code, message)
+
+    def _json_payload(self, response: requests.Response) -> dict[str, Any] | list[Any]:
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise InpiApiError(
+                response.status_code,
+                "Réponse JSON INPI invalide.",
+            ) from exc
