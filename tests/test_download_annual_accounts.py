@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import download_annual_accounts as downloader
+from services.inpi_annual_accounts import InpiApiError
 
 
 class FakeInpiAnnualAccountsClient:
@@ -186,6 +187,31 @@ class DownloadAnnualAccountsTest(unittest.TestCase):
             [("ok", temp_path / "downloads" / "222222222" / "ok.pdf")],
             client.downloads,
         )
+
+    def test_treats_attachments_404_as_not_found(self) -> None:
+        client = FakeInpiAnnualAccountsClient(
+            {},
+            errors_by_siren={"111111111": InpiApiError(404, "Erreur HTTP INPI 404.")},
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "input.csv"
+            results_path = temp_path / "results.csv"
+            input_path.write_text("siren\n111111111\n", encoding="utf-8")
+
+            downloader.download_annual_accounts(
+                input_path,
+                output_dir=temp_path / "downloads",
+                results_path=results_path,
+                sleep_seconds=0,
+                client=client,
+            )
+            rows = read_result_rows(results_path)
+
+        self.assertEqual("not_found", rows[0]["status"])
+        self.assertEqual("attachments_not_found", rows[0]["message"])
+        self.assertEqual([], client.downloads)
 
     def test_sleeps_between_sirens(self) -> None:
         client = FakeInpiAnnualAccountsClient(

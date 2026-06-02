@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from services.inpi_annual_accounts import (
+    InpiApiError,
     InpiAnnualAccountsClient,
     select_best_bilan_pdf,
 )
@@ -101,6 +102,17 @@ def process_siren(
                 "message": "",
             }
         )
+        return row
+    except InpiApiError as exc:
+        if exc.status_code == 404:
+            row["status"] = "not_found"
+            row["message"] = "attachments_not_found"
+            logger.info("Aucun endpoint attachments disponible pour %s", siren)
+            return row
+
+        logger.error("Erreur lors du traitement du SIREN %s: %s", siren, exc)
+        row["status"] = "error"
+        row["message"] = str(exc)
         return row
     except Exception as exc:
         logger.error("Erreur lors du traitement du SIREN %s: %s", siren, exc)
