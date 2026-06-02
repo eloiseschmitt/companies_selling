@@ -118,6 +118,68 @@ Limites connues :
 - certaines entreprises peuvent ne pas avoir de données disponibles ;
 - le chiffre d'affaires n'est pas toujours directement présent dans les métadonnées importées.
 
+### Téléchargement des comptes annuels INPI/RNE
+
+Le script `download_annual_accounts.py` télécharge le dernier bilan PDF public disponible via l'API INPI/RNE pour une liste de SIREN.
+
+Prérequis :
+
+- disposer d'un compte INPI/RNE autorisé à utiliser l'API ;
+- avoir installé les dépendances Python du projet.
+
+Variables d'environnement nécessaires :
+
+```bash
+export SFTP_USER="..."
+export SFTP_PASSWORD="..."
+```
+
+Format attendu du CSV d'entrée :
+
+```csv
+siren
+123456789
+987654321
+```
+
+La colonne `siren` est obligatoire. Chaque valeur doit correspondre à un SIREN à 9 chiffres.
+
+Exemple de commande :
+
+```bash
+python download_annual_accounts.py --input sirens.csv --output-dir downloads --results results.csv
+```
+
+Options utiles :
+
+```bash
+python download_annual_accounts.py --input sirens.csv --sleep 1
+python download_annual_accounts.py --input sirens.csv --force
+```
+
+Le script est relançable. Si le fichier de résultats existe déjà, les SIREN avec un statut final ne sont pas retraités. Les lignes en `error` sont rejouées. L'option `--force` force le retraitement complet. Si le PDF cible existe déjà et n'est pas vide, il n'est pas retéléchargé.
+
+Colonnes du fichier `results.csv` :
+
+```csv
+siren,status,bilan_id,date_cloture,date_depot,confidentiality,type_bilan,filename,message
+```
+
+Statuts possibles :
+
+- `downloaded` : un bilan public a été sélectionné et le PDF est disponible localement ;
+- `not_found` : aucun bilan n'est présent dans la réponse INPI/RNE ;
+- `confidential` : seuls des bilans non publics sont disponibles ;
+- `deleted_only` : seuls des bilans marqués comme supprimés sont disponibles ;
+- `error` : une erreur est survenue pour ce SIREN, le script continue avec les suivants.
+
+Limites connues :
+
+- les comptes confidentiels ne sont pas téléchargeables ;
+- certaines entreprises n'ont pas de dépôt disponible ;
+- les quotas et limites de débit de l'API INPI peuvent ralentir ou interrompre un lot ;
+- les données téléchargées doivent être réutilisées dans le respect de la licence de réutilisation applicable.
+
 ### Table `naf_code`
 
 Colonnes utilisées :
