@@ -13,6 +13,7 @@ from services.inpi_sftp import InpiSFTPClient, MissingSFTPCredentialsError
 
 class FakeSFTPClient:
     def __init__(self, entries: dict[str, list[str]] | None = None) -> None:
+        self.list_calls: list[str] = []
         self.entries = entries or {
             "Bilans_PDF": ["2026"],
             "Bilans_PDF/2026": ["06"],
@@ -40,6 +41,7 @@ class FakeSFTPClient:
         return None
 
     def list_entries(self, remote_path: str = "."):
+        self.list_calls.append(remote_path)
         names = self.entries[remote_path]
         return [
             SimpleNamespace(
@@ -197,6 +199,70 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         self.assertEqual(1, count)
         self.assertEqual(1, read_pdf_text.call_count)
 
+    def test_global_import_skips_already_checked_year_folder(self) -> None:
+        self.create_companies(["12345678900012"])
+        first_sftp = FakeSFTPClient()
+        second_sftp = FakeSFTPClient()
+
+        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
+            importer.InpiSFTPClient,
+            "from_environment",
+            return_value=first_sftp,
+        ), patch.object(
+            importer,
+            "read_pdf_text",
+            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        ):
+            first_stats = importer.import_financial_documents(year="2026")
+
+        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
+            importer.InpiSFTPClient,
+            "from_environment",
+            return_value=second_sftp,
+        ), patch.object(
+            importer,
+            "read_pdf_text",
+            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        ) as read_pdf_text:
+            second_stats = importer.import_financial_documents(year="2026")
+
+        self.assertEqual(3, first_stats.files_scanned)
+        self.assertEqual(1, second_stats.folders_skipped)
+        self.assertEqual(0, second_stats.files_scanned)
+        self.assertEqual([], second_sftp.list_calls)
+        self.assertEqual(0, read_pdf_text.call_count)
+
+    def test_limited_global_import_does_not_mark_folder_checked(self) -> None:
+        self.create_companies(["12345678900012"])
+        first_sftp = FakeSFTPClient()
+        second_sftp = FakeSFTPClient()
+
+        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
+            importer.InpiSFTPClient,
+            "from_environment",
+            return_value=first_sftp,
+        ), patch.object(
+            importer,
+            "read_pdf_text",
+            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        ):
+            first_stats = importer.import_financial_documents(year="2026", limit=1)
+
+        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
+            importer.InpiSFTPClient,
+            "from_environment",
+            return_value=second_sftp,
+        ), patch.object(
+            importer,
+            "read_pdf_text",
+            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        ):
+            second_stats = importer.import_financial_documents(year="2026")
+
+        self.assertEqual(1, first_stats.matching_sirens)
+        self.assertEqual(0, second_stats.folders_skipped)
+        self.assertGreater(second_stats.files_scanned, 0)
+
     def test_extracts_revenue_from_matching_line(self) -> None:
         text = "Produits\nCHIFFRES D'AFFAIRES NETS 1 000 2 345 678\nCharges"
 
@@ -344,6 +410,35 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         self.assertEqual(["123456789", "999999999"], [row["siren"] for row in rows])
         self.assertEqual("12345", str(rows[0]["revenue"]))
         self.assertEqual("42", str(rows[1]["revenue"]))
+
+    def test_targeted_siren_import_ignores_checked_folder_cache(self) -> None:
+        self.create_companies(["12345678900012"])
+        conn = self.connect()
+        try:
+            importer.create_checked_folders_table(conn)
+            importer.mark_folder_checked(conn, "Bilans_PDF/2026")
+            conn.commit()
+        finally:
+            conn.close()
+
+        fake_sftp = FakeSFTPClient()
+        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
+            importer.InpiSFTPClient,
+            "from_environment",
+            return_value=fake_sftp,
+        ), patch.object(
+            importer,
+            "read_pdf_text",
+            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        ) as read_pdf_text:
+            summary = importer.import_financial_document_for_siren(
+                "123456789",
+                year="2026",
+            )
+
+        self.assertEqual("inserted", summary["status"])
+        self.assertIn("Bilans_PDF/2026", fake_sftp.list_calls)
+        self.assertEqual(1, read_pdf_text.call_count)
 
     def test_targeted_import_requires_company_siren(self) -> None:
         self.create_companies(["99999999900012"])

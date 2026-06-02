@@ -64,6 +64,7 @@ class ImportStats:
     pdfs_read: int = 0
     revenues_found: int = 0
     pdfs_without_revenue: int = 0
+    folders_skipped: int = 0
 
 
 @dataclass
@@ -118,6 +119,54 @@ def get_existing_company_identifiers(
             sirets_by_siren.setdefault(siren, set()).add(siret)
 
     return sirens, sirets_by_siren
+
+
+def create_checked_folders_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS financial_document_checked_folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            remote_path TEXT NOT NULL UNIQUE,
+            source TEXT NOT NULL,
+            checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_financial_document_checked_folders_path
+        ON financial_document_checked_folders (remote_path)
+        """
+    )
+
+
+def folder_already_checked(conn: sqlite3.Connection, remote_path: str) -> bool:
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM financial_document_checked_folders
+        WHERE remote_path = ?
+        """,
+        (remote_path,),
+    ).fetchone()
+    return row is not None
+
+
+def mark_folder_checked(conn: sqlite3.Connection, remote_path: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO financial_document_checked_folders (
+            remote_path,
+            source,
+            checked_at
+        )
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(remote_path) DO UPDATE SET
+            source = excluded.source,
+            checked_at = excluded.checked_at
+        """,
+        (remote_path, DOCUMENT_SOURCE),
+    )
 
 
 def normalize_digits(value: object, expected_length: int) -> str | None:
@@ -829,6 +878,7 @@ def import_financial_documents(
     conn = get_connection()
     try:
         create_financial_documents_table(conn)
+        create_checked_folders_table(conn)
         company_sirens, sirets_by_siren = get_existing_company_identifiers(conn)
         logger.info(
             "%s SIREN entreprises chargés depuis companies",
@@ -841,7 +891,13 @@ def import_financial_documents(
                 raise ValueError("--year doit être une année sur 4 chiffres")
             year_path = f"{INPI_ROOT_DIR}/{selected_year}"
 
+            if folder_already_checked(conn, year_path):
+                stats.folders_skipped += 1
+                logger.info("Dossier déjà vérifié, import ignoré: %s", year_path)
+                return stats
+
             logger.info("Import des PDF INPI depuis %s", year_path)
+            full_scan = dry_run is False and max_pdfs is None and limit is None
 
             for remote_file in iter_pdf_files(client, year_path):
                 stats.files_scanned += 1
@@ -890,6 +946,8 @@ def import_financial_documents(
                     stats.documents_updated += 1
 
             if not dry_run:
+                if full_scan:
+                    mark_folder_checked(conn, year_path)
                 conn.commit()
     finally:
         conn.close()
@@ -899,6 +957,7 @@ def import_financial_documents(
     logger.info("PDF lus: %s", stats.pdfs_read)
     logger.info("Chiffres d'affaires trouvés: %s", stats.revenues_found)
     logger.info("PDF sans chiffre d'affaires détecté: %s", stats.pdfs_without_revenue)
+    logger.info("Dossiers déjà vérifiés ignorés: %s", stats.folders_skipped)
     logger.info("Documents ignorés: %s", stats.documents_ignored)
     logger.info("Documents insérés: %s", stats.documents_inserted)
     logger.info("Documents mis à jour: %s", stats.documents_updated)
