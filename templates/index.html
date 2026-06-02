@@ -155,6 +155,13 @@
             background: #2980b9;
         }
 
+        .action-links {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
         .pagination {
             display: flex;
             gap: 10px;
@@ -285,7 +292,11 @@
                 <p class="stats">
                     {{ total_count }} résultat{{ "s" if total_count != 1 else "" }} au total, toutes pages comprises
                 </p>
-                <a class="nav-link" href="/naf_sections">Voir les sections NAF</a>
+                <div class="action-links">
+                    <a class="nav-link" href="/naf_sections">Voir les sections NAF</a>
+                    <a class="nav-link"
+                        href="/companies.csv{% if export_query %}?{{ export_query }}{% endif %}">Exporter en CSV</a>
+                </div>
             </div>
             <div class="stats">
                 Page {{ page }} / {{ total_pages }}

@@ -1,10 +1,14 @@
 from fastapi import Request
+from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
+import csv
+import io
 import sqlite3
 import os
 import re
 from datetime import date, datetime
 from dotenv import load_dotenv
+from urllib.parse import urlencode
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -15,6 +19,19 @@ import admin
 
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+COMPANY_EXPORT_COLUMNS = [
+    "siren",
+    "siret",
+    "nic",
+    "denomination_legale",
+    "prenom",
+    "nom",
+    "dateCreationEtablissement",
+    "trancheEffectifsEtablissement",
+    "activitePrincipaleEtablissement",
+    "libelle",
+    "score",
+]
 
 
 def get_db_connection():
@@ -198,6 +215,82 @@ def get_company_score_sql() -> str:
     """
 
 
+def build_company_query(
+    where_clause: str,
+    score_sort_direction: str,
+    paginated: bool = False,
+) -> str:
+    pagination_sql = "LIMIT ? OFFSET ?" if paginated else ""
+    score_sql = get_company_score_sql()
+    return f"""
+        SELECT SUBSTR(siret, 1, 9) AS siren,
+               siret, nic, dateCreationEtablissement,
+               trancheEffectifsEtablissement, activitePrincipaleEtablissement,
+               denomination_legale, prenom, nom,
+               {score_sql} AS score
+        FROM companies
+        {where_clause}
+        ORDER BY SUBSTR(activitePrincipaleEtablissement, 1, 2),
+                 SUBSTR(activitePrincipaleEtablissement, 1, 4),
+                 activitePrincipaleEtablissement,
+                 score {score_sort_direction},
+                 dateCreationEtablissement DESC,
+                 siret
+        {pagination_sql}
+    """
+
+
+def get_naf_code_map(conn: sqlite3.Connection) -> dict[str, str]:
+    naf_codes = conn.execute(
+        """
+        SELECT code, name from naf_code
+        """,
+    ).fetchall()
+    return {row["code"]: row["name"] for row in naf_codes}
+
+
+def format_company_row(row: sqlite3.Row, code_to_name: dict[str, str]) -> dict:
+    company = dict(row)
+    company["trancheEffectifsEtablissement"] = MAPPING_HEADCOUNT.get(
+        company.get("trancheEffectifsEtablissement"),
+        company.get("trancheEffectifsEtablissement"),
+    )
+    company["libelle"] = code_to_name.get(
+        company.get("activitePrincipaleEtablissement"),
+        "",
+    )
+    return company
+
+
+def build_export_query_string(
+    section: str | None,
+    naf_code: str | None,
+    sort_score: str | None,
+) -> str:
+    params = {}
+    if section:
+        params["section"] = section
+    if naf_code:
+        params["naf_code"] = naf_code
+    if sort_score:
+        params["sort_score"] = sort_score
+    return urlencode(params)
+
+
+def build_companies_csv(companies: list[dict]) -> str:
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=COMPANY_EXPORT_COLUMNS)
+    writer.writeheader()
+    for company in companies:
+        writer.writerow(
+            {
+                column: company.get(column, "")
+                for column in COMPANY_EXPORT_COLUMNS
+            }
+        )
+    return output.getvalue()
+
+
 def company_is_older_than_30_years(creation_date: str | None) -> bool:
     """Retourne True si la date de création a plus de 30 ans."""
     if not creation_date:
@@ -254,7 +347,6 @@ def home(
         selected_naf_codes,
     )
     score_sort_direction = get_score_sort_direction(sort_score)
-    score_sql = get_company_score_sql()
     total_count = conn.execute(
         f"SELECT COUNT(*) as count FROM companies{where_clause}",
         where_params,
@@ -262,49 +354,18 @@ def home(
     offset = (page - 1) * limit
 
     companies = conn.execute(
-        f"""
-        SELECT siret, nic, dateCreationEtablissement, 
-               trancheEffectifsEtablissement, activitePrincipaleEtablissement,
-               denomination_legale, prenom, nom,
-               {score_sql} AS score
-        FROM companies
-        {where_clause}
-        ORDER BY SUBSTR(activitePrincipaleEtablissement, 1, 2),
-                 SUBSTR(activitePrincipaleEtablissement, 1, 4),
-                 activitePrincipaleEtablissement,
-                 score {score_sort_direction},
-                 dateCreationEtablissement DESC,
-                 siret
-        LIMIT ? OFFSET ?
-    """,
+        build_company_query(where_clause, score_sort_direction, paginated=True),
         [*where_params, limit, offset],
     ).fetchall()
 
-    naf_codes = conn.execute(
-        """
-        SELECT code, name from naf_code
-        """,
-    ).fetchall()
+    code_to_name = get_naf_code_map(conn)
 
     conn.close()
 
     companies_list = [
-        {
-            **dict(row),
-            "trancheEffectifsEtablissement": MAPPING_HEADCOUNT.get(
-                dict(row).get("trancheEffectifsEtablissement"),
-                dict(row).get("trancheEffectifsEtablissement"),
-            ),
-        } for row in companies
+        format_company_row(row, code_to_name)
+        for row in companies
     ]
-    naf_code_list = [dict(row) for row in naf_codes]
-
-    code_to_name = {item["code"]: item["name"] for item in naf_code_list}
-
-    for company in companies_list:
-        code = company.get("activitePrincipaleEtablissement")
-        if code in code_to_name:
-            company["libelle"] = code_to_name[code]
 
     display_rows = build_display_rows(companies_list, code_to_name)
     total_pages = (total_count + limit - 1) // limit
@@ -327,9 +388,51 @@ def home(
         "selected_naf_codes": selected_naf_code_names,
         "sort_score": sort_score or "desc",
         "next_sort_score": "asc" if (sort_score or "desc") == "desc" else "desc",
+        "export_query": build_export_query_string(
+            selected_section,
+            selected_naf_codes_query,
+            sort_score or "desc",
+        ),
     }
 
     return templates.TemplateResponse(request, "index.html", context)
+
+
+@app.get("/companies.csv")
+def export_companies_csv(
+    section: str | None = None,
+    naf_code: str | None = None,
+    sort_score: str | None = None,
+):
+    """Exporte en CSV les entreprises correspondant aux filtres de la page home."""
+    conn = get_db_connection()
+    selected_section = normalize_naf_code(section)
+    selected_naf_codes = parse_naf_codes(naf_code)
+    where_clause, where_params = build_company_filter_clause(
+        selected_section,
+        selected_naf_codes,
+    )
+    score_sort_direction = get_score_sort_direction(sort_score)
+    companies = conn.execute(
+        build_company_query(where_clause, score_sort_direction),
+        where_params,
+    ).fetchall()
+    code_to_name = get_naf_code_map(conn)
+    conn.close()
+
+    companies_list = [
+        format_company_row(row, code_to_name)
+        for row in companies
+    ]
+    csv_content = build_companies_csv(companies_list)
+    headers = {
+        "Content-Disposition": 'attachment; filename="companies_export.csv"',
+    }
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers=headers,
+    )
 
 
 @app.get("/naf_sections")
