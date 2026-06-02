@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -32,6 +33,10 @@ class InpiApiError(RuntimeError):
 
 class InpiAuthenticationError(RuntimeError):
     """Erreur levée quand l'authentification INPI échoue."""
+
+
+class InpiDownloadError(RuntimeError):
+    """Erreur levée quand le fichier téléchargé depuis l'INPI est invalide."""
 
 
 HTTP_ERROR_MESSAGES = {
@@ -129,6 +134,28 @@ class InpiAnnualAccountsClient:
         )
         self._raise_for_known_http_error(response)
         return self._json_payload(response)
+
+    def download_bilan_pdf(self, bilan_id: str, output_path: Path) -> Path:
+        """Télécharge un bilan PDF INPI vers le chemin local demandé."""
+        if self.token is None:
+            self.authenticate()
+
+        response = self.session.get(
+            f"{API_BASE_URL}/bilans/{bilan_id}/download",
+            headers={"Authorization": f"Bearer {self.token}"},
+            timeout=self.timeout,
+        )
+        self._raise_for_known_http_error(response)
+
+        content = response.content
+        if not content:
+            raise InpiDownloadError("Le bilan PDF INPI téléchargé est vide.")
+        if not content.startswith(b"%PDF"):
+            raise InpiDownloadError("Le bilan INPI téléchargé n'est pas un PDF valide.")
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(content)
+        return output_path
 
     def _raise_for_known_http_error(self, response: requests.Response) -> None:
         if response.status_code < 400:

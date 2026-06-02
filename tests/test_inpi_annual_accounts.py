@@ -1,5 +1,7 @@
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from services.inpi_annual_accounts import (
@@ -9,6 +11,7 @@ from services.inpi_annual_accounts import (
     InpiAnnualAccountsClient,
     InpiApiError,
     InpiAuthenticationError,
+    InpiDownloadError,
     MissingInpiCredentialsError,
     select_best_bilan_pdf,
 )
@@ -19,6 +22,7 @@ def make_response(status_code: int = 200, payload=None, text: str = ""):
     response.status_code = status_code
     response.text = text
     response.json.return_value = payload if payload is not None else {}
+    response.content = b""
     return response
 
 
@@ -143,6 +147,104 @@ class InpiAnnualAccountsClientTest(unittest.TestCase):
             client.get_company_attachments("123456789")
 
         self.assertEqual(200, raised.exception.status_code)
+
+    def test_download_bilan_pdf_writes_binary_response(self) -> None:
+        response = make_response()
+        response.content = b"%PDF-1.4\ncontent"
+        session = Mock()
+        session.get.return_value = response
+        client = InpiAnnualAccountsClient(session=session)
+        client.token = "abc-token"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "nested" / "bilan.pdf"
+
+            downloaded_path = client.download_bilan_pdf("bilan-123", output_path)
+
+            self.assertEqual(output_path, downloaded_path)
+            self.assertEqual(b"%PDF-1.4\ncontent", output_path.read_bytes())
+
+        session.get.assert_called_once_with(
+            f"{API_BASE_URL}/bilans/bilan-123/download",
+            headers={"Authorization": "Bearer abc-token"},
+            timeout=30,
+        )
+
+    def test_download_bilan_pdf_authenticates_when_needed(self) -> None:
+        login_response = make_response(payload={"token": "abc-token"})
+        download_response = make_response()
+        download_response.content = b"%PDF-1.4\ncontent"
+        session = Mock()
+        session.post.return_value = login_response
+        session.get.return_value = download_response
+        client = InpiAnnualAccountsClient(session=session)
+
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
+            os.environ,
+            {"SFTP_USER": "demo-user", "SFTP_PASSWORD": "demo-password"},
+            clear=True,
+        ):
+            output_path = Path(temp_dir) / "bilan.pdf"
+
+            downloaded_path = client.download_bilan_pdf("bilan-123", output_path)
+
+            self.assertEqual(output_path, downloaded_path)
+
+        session.post.assert_called_once()
+        session.get.assert_called_once_with(
+            f"{API_BASE_URL}/bilans/bilan-123/download",
+            headers={"Authorization": "Bearer abc-token"},
+            timeout=30,
+        )
+
+    def test_download_bilan_pdf_rejects_empty_content(self) -> None:
+        response = make_response()
+        response.content = b""
+        session = Mock()
+        session.get.return_value = response
+        client = InpiAnnualAccountsClient(session=session)
+        client.token = "abc-token"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "bilan.pdf"
+
+            with self.assertRaises(InpiDownloadError):
+                client.download_bilan_pdf("bilan-123", output_path)
+
+            self.assertFalse(output_path.exists())
+
+    def test_download_bilan_pdf_rejects_non_pdf_content(self) -> None:
+        response = make_response()
+        response.content = b"not a pdf"
+        session = Mock()
+        session.get.return_value = response
+        client = InpiAnnualAccountsClient(session=session)
+        client.token = "abc-token"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "bilan.pdf"
+
+            with self.assertRaises(InpiDownloadError):
+                client.download_bilan_pdf("bilan-123", output_path)
+
+            self.assertFalse(output_path.exists())
+
+    def test_download_bilan_pdf_raises_api_error_before_writing_file(self) -> None:
+        response = make_response(status_code=403, text="forbidden")
+        response.content = b"%PDF-1.4\ncontent"
+        session = Mock()
+        session.get.return_value = response
+        client = InpiAnnualAccountsClient(session=session)
+        client.token = "abc-token"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "bilan.pdf"
+
+            with self.assertRaises(InpiApiError) as raised:
+                client.download_bilan_pdf("bilan-123", output_path)
+
+            self.assertEqual(403, raised.exception.status_code)
+            self.assertFalse(output_path.exists())
 
 
 class SelectBestBilanPdfTest(unittest.TestCase):
