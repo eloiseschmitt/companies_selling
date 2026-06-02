@@ -48,6 +48,37 @@ def validate_siren(siren: str) -> None:
         raise ValueError("siren doit contenir exactement 9 chiffres.")
 
 
+def select_best_bilan_pdf(
+    attachments: dict[str, Any],
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Sélectionne le meilleur bilan public disponible dans la réponse INPI."""
+    bilans = attachments.get("bilans") or []
+    if not bilans:
+        return None, "no_bilan"
+
+    active_bilans = [
+        bilan
+        for bilan in bilans
+        if isinstance(bilan, dict) and not bilan.get("deleted")
+    ]
+    if not active_bilans:
+        return None, "only_deleted"
+
+    public_bilans = [
+        bilan
+        for bilan in active_bilans
+        if bilan.get("confidentiality") == "Public"
+    ]
+    if not public_bilans:
+        return None, "only_confidential"
+
+    return max(public_bilans, key=_bilan_sort_date), None
+
+
+def _bilan_sort_date(bilan: dict[str, Any]) -> str:
+    return str(bilan.get("dateCloture") or bilan.get("dateDepot") or "")
+
+
 class InpiAnnualAccountsClient:
     """Client minimal pour consulter les pièces jointes d'une entreprise INPI."""
 

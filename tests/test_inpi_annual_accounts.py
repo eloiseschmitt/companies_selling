@@ -10,6 +10,7 @@ from services.inpi_annual_accounts import (
     InpiApiError,
     InpiAuthenticationError,
     MissingInpiCredentialsError,
+    select_best_bilan_pdf,
 )
 
 
@@ -142,6 +143,140 @@ class InpiAnnualAccountsClientTest(unittest.TestCase):
             client.get_company_attachments("123456789")
 
         self.assertEqual(200, raised.exception.status_code)
+
+
+class SelectBestBilanPdfTest(unittest.TestCase):
+    def test_selects_latest_public_bilan_by_closing_date(self) -> None:
+        selected, reason = select_best_bilan_pdf(
+            {
+                "bilans": [
+                    {
+                        "id": "old",
+                        "confidentiality": "Public",
+                        "deleted": False,
+                        "dateCloture": "2023-12-31",
+                        "dateDepot": "2024-04-20",
+                    },
+                    {
+                        "id": "latest",
+                        "confidentiality": "Public",
+                        "deleted": False,
+                        "dateCloture": "2024-12-31",
+                        "dateDepot": "2025-04-20",
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual("latest", selected["id"])
+        self.assertIsNone(reason)
+
+    def test_falls_back_to_deposit_date_when_closing_date_is_missing(self) -> None:
+        selected, reason = select_best_bilan_pdf(
+            {
+                "bilans": [
+                    {
+                        "id": "old",
+                        "confidentiality": "Public",
+                        "deleted": False,
+                        "dateDepot": "2024-01-10",
+                    },
+                    {
+                        "id": "latest",
+                        "confidentiality": "Public",
+                        "deleted": False,
+                        "dateDepot": "2024-03-10",
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual("latest", selected["id"])
+        self.assertIsNone(reason)
+
+    def test_ignores_deleted_bilans(self) -> None:
+        selected, reason = select_best_bilan_pdf(
+            {
+                "bilans": [
+                    {
+                        "id": "deleted-latest",
+                        "confidentiality": "Public",
+                        "deleted": True,
+                        "dateCloture": "2025-12-31",
+                    },
+                    {
+                        "id": "public-active",
+                        "confidentiality": "Public",
+                        "deleted": False,
+                        "dateCloture": "2024-12-31",
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual("public-active", selected["id"])
+        self.assertIsNone(reason)
+
+    def test_ignores_confidential_bilans(self) -> None:
+        selected, reason = select_best_bilan_pdf(
+            {
+                "bilans": [
+                    {
+                        "id": "confidential-latest",
+                        "confidentiality": "Confidentiel",
+                        "deleted": False,
+                        "dateCloture": "2025-12-31",
+                    },
+                    {
+                        "id": "public",
+                        "confidentiality": "Public",
+                        "deleted": False,
+                        "dateCloture": "2024-12-31",
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual("public", selected["id"])
+        self.assertIsNone(reason)
+
+    def test_returns_no_bilan_reason_when_no_bilan_exists(self) -> None:
+        selected, reason = select_best_bilan_pdf({"bilans": []})
+
+        self.assertIsNone(selected)
+        self.assertEqual("no_bilan", reason)
+
+    def test_returns_only_confidential_reason_without_public_bilan(self) -> None:
+        selected, reason = select_best_bilan_pdf(
+            {
+                "bilans": [
+                    {
+                        "id": "confidential",
+                        "confidentiality": "Confidentiel",
+                        "deleted": False,
+                    }
+                ]
+            }
+        )
+
+        self.assertIsNone(selected)
+        self.assertEqual("only_confidential", reason)
+
+    def test_returns_only_deleted_reason_when_all_bilans_are_deleted(self) -> None:
+        selected, reason = select_best_bilan_pdf(
+            {
+                "bilans": [
+                    {
+                        "id": "deleted",
+                        "confidentiality": "Public",
+                        "deleted": True,
+                    }
+                ]
+            }
+        )
+
+        self.assertIsNone(selected)
+        self.assertEqual("only_deleted", reason)
 
 
 if __name__ == "__main__":
