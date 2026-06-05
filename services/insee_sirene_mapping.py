@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import date, datetime
 from typing import Any, Protocol
 
 
@@ -40,6 +41,9 @@ CSV_COLUMNS = (
     "commune",
     "code_commune",
     "adresse_complete",
+    "age_etablissement_annees",
+    "score_priorisation",
+    "raison_score",
 )
 
 NO_OR_SMALL_HEADCOUNT_CODES = {"", "NN", "00", "01", "02"}
@@ -114,7 +118,7 @@ def map_etablissement_to_csv_row(
     commune = _address_value(etablissement, "libelleCommuneEtablissement")
     code_commune = _address_value(etablissement, "codeCommuneEtablissement")
 
-    row = {
+    row: dict[str, Any] = {
         "siren": _siren_value(etablissement, unite_legale),
         "siret": _clean(etablissement.get("siret")),
         "nic": _clean(etablissement.get("nic")),
@@ -175,7 +179,89 @@ def map_etablissement_to_csv_row(
             commune=commune,
         ),
     }
+    row.update(
+        compute_prioritization_score(
+            activite_principale=row["code_naf_retenu"],
+            date_creation_etablissement=row["date_creation_etablissement"],
+            caractere_employeur_unite_legale=row[
+                "caractere_employeur_unite_legale"
+            ],
+            enseigne_1=row["enseigne_1"],
+            enseigne_2=row["enseigne_2"],
+            enseigne_3=row["enseigne_3"],
+        )
+    )
     return {column: row.get(column, "") for column in CSV_COLUMNS}
+
+
+def compute_prioritization_score(
+    activite_principale: str,
+    date_creation_etablissement: str,
+    caractere_employeur_unite_legale: str,
+    enseigne_1: str = "",
+    enseigne_2: str = "",
+    enseigne_3: str = "",
+    today: date | None = None,
+) -> dict[str, Any]:
+    """Calcule le score de priorisation d'une ligne exportée."""
+    score = 0
+    reasons: list[str] = []
+
+    normalized_activity = _clean(activite_principale)
+    if normalized_activity == "8810A":
+        score += 3
+        reasons.append("activite_8810A:+3")
+    if normalized_activity == "8121Z":
+        score += 2
+        reasons.append("activite_8121Z:+2")
+
+    age = compute_age_years(date_creation_etablissement, today=today)
+    if age is not None:
+        if age > 5:
+            score += 2
+            reasons.append("age_plus_5_ans:+2")
+        if age > 10:
+            score += 3
+            reasons.append("age_plus_10_ans:+3")
+        if age < 1:
+            score -= 2
+            reasons.append("creation_moins_1_an:-2")
+
+    if _clean(caractere_employeur_unite_legale) == "O":
+        score += 2
+        reasons.append("employeur_unite_legale:+2")
+
+    if any(_clean(enseigne) for enseigne in (enseigne_1, enseigne_2, enseigne_3)):
+        score += 1
+        reasons.append("enseigne_renseignee:+1")
+
+    return {
+        "age_etablissement_annees": "" if age is None else age,
+        "score_priorisation": score,
+        "raison_score": "; ".join(reasons),
+    }
+
+
+def compute_age_years(
+    date_creation: str,
+    today: date | None = None,
+) -> int | None:
+    """Retourne l'âge en années révolues ou None si la date est absente/invalide."""
+    cleaned_date = _clean(date_creation)
+    if not cleaned_date:
+        return None
+
+    try:
+        creation_date = datetime.strptime(cleaned_date, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+    reference_date = today or date.today()
+    age = reference_date.year - creation_date.year - (
+        (reference_date.month, reference_date.day)
+        < (creation_date.month, creation_date.day)
+    )
+    return max(0, age)
 
 
 def build_adresse_complete(
