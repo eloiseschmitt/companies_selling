@@ -23,6 +23,7 @@ def make_response(status_code: int = 200, payload=None, text: str = ""):
     response = Mock()
     response.status_code = status_code
     response.text = text
+    response.headers = {}
     response.json.return_value = payload if payload is not None else {}
     return response
 
@@ -124,6 +125,30 @@ class InseeSireneClientTest(unittest.TestCase):
         self.assertEqual({"uniteLegale": {"siren": "123456789"}}, payload)
         self.assertEqual(2, session.get.call_count)
         sleep_mock.assert_called_once_with(0.25)
+
+    def test_429_uses_retry_after_header_when_available(self) -> None:
+        retry_response = make_response(status_code=429)
+        retry_response.headers = {"Retry-After": "7"}
+        session = Mock()
+        session.get.side_effect = [
+            retry_response,
+            make_response(payload={"uniteLegale": {"siren": "123456789"}}),
+        ]
+        client = InseeSireneClient(
+            session=session,
+            retry_attempts=2,
+            retry_delay_seconds=0.25,
+        )
+
+        with patch.dict(
+            os.environ,
+            {"INSEE_API_KEY": "secret-key"},
+            clear=True,
+        ), patch("services.insee_sirene.time.sleep") as sleep_mock:
+            payload = client.get_siren("123456789")
+
+        self.assertEqual({"uniteLegale": {"siren": "123456789"}}, payload)
+        sleep_mock.assert_called_once_with(7.0)
 
     def test_429_after_retry_raises_explicit_error(self) -> None:
         session = Mock()

@@ -19,7 +19,7 @@ from services.insee_sirene_mapping import (
 
 DEFAULT_OUTPUT = Path("independants_bordeaux_metropole.csv")
 DEFAULT_CACHE = Path(".cache") / "insee_sirene_unites_legales.json"
-DEFAULT_ENRICH_DELAY_SECONDS = 0.1
+DEFAULT_ENRICH_DELAY_SECONDS = 1.0
 
 
 class JsonSirenCache:
@@ -210,6 +210,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Nombre maximal d'établissements à récupérer avant enrichissement.",
     )
+    parser.add_argument(
+        "--enrich-delay",
+        type=float,
+        default=DEFAULT_ENRICH_DELAY_SECONDS,
+        help="Temps d'attente en secondes après chaque nouvel appel /siren.",
+    )
     return parser.parse_args(argv)
 
 
@@ -219,6 +225,7 @@ def main(argv: list[str] | None = None) -> int:
         output_path=args.output,
         cache_path=args.cache,
         limit=args.limit,
+        enrich_delay_seconds=args.enrich_delay,
     )
     return 0
 

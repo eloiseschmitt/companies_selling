@@ -7,6 +7,8 @@ import os
 import re
 import time
 from collections.abc import Mapping, Sequence
+from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -17,10 +19,11 @@ API_BASE_URL = "https://api.insee.fr/api-sirene/3.11"
 API_KEY_ENV_VAR = "INSEE_API_KEY"
 API_KEY_HEADER = "X-INSEE-Api-Key-Integration"
 DEFAULT_TIMEOUT_SECONDS = 30
-DEFAULT_RETRY_ATTEMPTS = 2
-DEFAULT_RETRY_DELAY_SECONDS = 1.0
+DEFAULT_RETRY_ATTEMPTS = 6
+DEFAULT_RETRY_DELAY_SECONDS = 2.0
+DEFAULT_MAX_RETRY_DELAY_SECONDS = 120.0
 DEFAULT_PAGE_SIZE = 1000
-DEFAULT_PAGE_DELAY_SECONDS = 0.25
+DEFAULT_PAGE_DELAY_SECONDS = 1.0
 
 BORDEAUX_METROPOLE_POSTAL_CODES = (
     "33000",
@@ -104,12 +107,14 @@ class InseeSireneClient:
         timeout: int = DEFAULT_TIMEOUT_SECONDS,
         retry_attempts: int = DEFAULT_RETRY_ATTEMPTS,
         retry_delay_seconds: float = DEFAULT_RETRY_DELAY_SECONDS,
+        max_retry_delay_seconds: float = DEFAULT_MAX_RETRY_DELAY_SECONDS,
     ) -> None:
         self.session = session or requests.Session()
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.retry_attempts = retry_attempts
         self.retry_delay_seconds = retry_delay_seconds
+        self.max_retry_delay_seconds = max_retry_delay_seconds
         self._api_key: str | None = None
 
     def get_siren(self, siren: str) -> dict[str, Any]:
@@ -215,16 +220,35 @@ class InseeSireneClient:
                 self._raise_for_http_error(response, "GET", url)
                 return self._json_payload(response)
 
+            delay = self._retry_delay_seconds(response, attempt)
             logger.warning(
                 "Réponse SIRENE INSEE 429 pour GET %s, retry %s/%s dans %.2fs.",
                 url,
                 attempt + 1,
                 attempts,
-                self.retry_delay_seconds,
+                delay,
             )
-            time.sleep(self.retry_delay_seconds)
+            time.sleep(delay)
 
         raise InseeSireneRequestError(f"Requête SIRENE INSEE inachevée pour GET {url}.")
+
+    def _retry_delay_seconds(
+        self,
+        response: requests.Response,
+        attempt: int,
+    ) -> float:
+        headers = getattr(response, "headers", {}) or {}
+        retry_after_header = (
+            headers.get("Retry-After")
+            if isinstance(headers, Mapping)
+            else None
+        )
+        retry_after = _parse_retry_after(retry_after_header)
+        if retry_after is not None:
+            return min(retry_after, self.max_retry_delay_seconds)
+
+        delay = self.retry_delay_seconds * (2 ** (attempt - 1))
+        return min(delay, self.max_retry_delay_seconds)
 
     def _get_api_key(self) -> str:
         if self._api_key is not None:
@@ -319,3 +343,22 @@ def format_sirene_naf_code(naf_code: str) -> str:
     if len(cleaned_code) == 5:
         return f"{cleaned_code[:2]}.{cleaned_code[2:]}"
     return naf_code.strip().upper()
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    if not value:
+        return None
+
+    cleaned_value = value.strip()
+    if cleaned_value.isdigit():
+        return float(cleaned_value)
+
+    try:
+        retry_at = parsedate_to_datetime(cleaned_value)
+    except (TypeError, ValueError):
+        return None
+
+    if retry_at.tzinfo is None:
+        retry_at = retry_at.replace(tzinfo=timezone.utc)
+    delay = (retry_at - datetime.now(timezone.utc)).total_seconds()
+    return max(0.0, delay)

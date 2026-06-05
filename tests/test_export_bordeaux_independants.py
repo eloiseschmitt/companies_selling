@@ -197,11 +197,14 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
                 "independants_bordeaux_metropole.csv",
                 "--limit",
                 "5",
+                "--enrich-delay",
+                "2.5",
             ]
         )
 
         self.assertEqual(Path("independants_bordeaux_metropole.csv"), args.output)
         self.assertEqual(5, args.limit)
+        self.assertEqual(2.5, args.enrich_delay)
 
 
 if __name__ == "__main__":
