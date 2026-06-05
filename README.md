@@ -180,6 +180,59 @@ Limites connues :
 - les quotas et limites de débit de l'API INPI peuvent ralentir ou interrompre un lot ;
 - les données téléchargées doivent être réutilisées dans le respect de la licence de réutilisation applicable.
 
+### Export SIRENE Bordeaux Métropole
+
+La commande `scripts.export_bordeaux_independants` interroge l'API SIRENE INSEE pour exporter les entrepreneurs individuels actifs dont l'établissement siège est situé dans les codes postaux ciblés de Bordeaux Métropole.
+
+Variable d'environnement nécessaire :
+
+```bash
+export INSEE_API_KEY="..."
+```
+
+Exemple d'exécution :
+
+```bash
+python -m scripts.export_bordeaux_independants --output independants_bordeaux_metropole.csv
+```
+
+Si l'environnement local utilise le virtualenv du projet :
+
+```bash
+venv/bin/python -m scripts.export_bordeaux_independants --output independants_bordeaux_metropole.csv
+```
+
+La commande :
+
+- recherche les établissements actifs et sièges via `/siret` ;
+- filtre sur les codes postaux utiles de Bordeaux Métropole ;
+- filtre sur les codes NAF ciblés ;
+- enrichit chaque établissement avec `/siren/{siren}` ;
+- conserve les unités légales dont `categorieJuridiqueUniteLegale == "1000"` ;
+- écrit un CSV UTF-8 avec BOM compatible Excel ;
+- utilise un cache JSON local, par défaut `.cache/insee_sirene_unites_legales.json`, pour éviter de rappeler plusieurs fois `/siren/{siren}`.
+
+Codes NAF utilisés :
+
+- `8121Z` : nettoyage courant des bâtiments
+- `8129B` : autres activités de nettoyage
+- `8130Z` : services d'aménagement paysager
+- `8810A` : aide à domicile
+- `8810B` : accueil ou accompagnement sans hébergement
+
+Colonnes principales du CSV :
+
+```csv
+siren,siret,nic,nom_ou_denomination,denomination_unite_legale,nom_unite_legale,prenom_usuel_unite_legale,categorie_juridique_unite_legale,est_entrepreneur_individuel,est_micro_entrepreneur_probable,activite_principale_unite_legale,activite_principale_etablissement,code_naf_retenu,date_creation_unite_legale,date_creation_etablissement,etat_administratif_unite_legale,etat_administratif_etablissement,tranche_effectifs_unite_legale,tranche_effectifs_etablissement,caractere_employeur_unite_legale,caractere_employeur_etablissement,enseigne_1,enseigne_2,enseigne_3,denomination_usuelle_etablissement,numero_voie,type_voie,libelle_voie,complement_adresse,code_postal,commune,code_commune,adresse_complete,age_etablissement_annees,score_priorisation,raison_score
+123456789,12345678900012,00012,ALICE DUPONT,,DUPONT,ALICE,1000,True,True,8121Z,8121Z,8121Z,2018-04-10,2018-04-10,A,A,NN,NN,N,N,CLEAN SERVICES,,,,12,RUE,DES LILAS,,33000,BORDEAUX,33063,"12 RUE DES LILAS, 33000 BORDEAUX",8,5,"activite_8121Z:+2; age_plus_5_ans:+2; enseigne_renseignee:+1"
+```
+
+Limites connues :
+
+- l'API SIRENE ne donne pas toujours le statut micro-entrepreneur avec certitude ; la colonne `est_micro_entrepreneur_probable` est donc une approximation ;
+- les coordonnées téléphone/email ne sont pas disponibles dans SIRENE ;
+- le filtrage par code postal peut inclure des communes hors Bordeaux Métropole si le code postal est partagé.
+
 ### Table `naf_code`
 
 Colonnes utilisées :
