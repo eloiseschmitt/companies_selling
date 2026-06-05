@@ -8,7 +8,9 @@ from pathlib import Path
 from scripts.export_bordeaux_independants import (
     CachedSireneClient,
     JsonSirenCache,
+    count_uncached_etablissements,
     export_bordeaux_independants,
+    extract_siren_from_etablissement,
     parse_args,
 )
 
@@ -105,7 +107,7 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
         self.assertEqual("11111111100011", rows[0]["siret"])
         self.assertEqual("1000", rows[0]["categorie_juridique_unite_legale"])
         self.assertEqual("True", rows[0]["est_entrepreneur_individuel"])
-        self.assertIn("3/3 100%", progress.getvalue())
+        self.assertIn("2/2 100%", progress.getvalue())
         self.assertIn("Export terminé: 1 lignes", progress.getvalue())
         self.assertEqual(["111111111", "222222222"], client.get_siren_calls)
         self.assertEqual({"111111111", "222222222"}, set(cached_payload))
@@ -189,6 +191,85 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
         self.assertEqual(1, count)
         self.assertEqual([], client.get_siren_calls)
         self.assertEqual("CACHE EI", rows[0]["nom_ou_denomination"])
+
+    def test_export_progress_only_counts_uncached_etablissements(self) -> None:
+        client = FakeSireneClient(
+            etablissements=[
+                {"siren": "111111111", "siret": "11111111100011"},
+                {"siren": "222222222", "siret": "22222222200022"},
+            ],
+            unites_legales_by_siren={
+                "222222222": {
+                    "uniteLegale": {
+                        "categorieJuridiqueUniteLegale": "1000",
+                        "denominationUniteLegale": "LIVE EI",
+                    }
+                }
+            },
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_path = Path(temp_dir) / "cache.json"
+            cache_path.write_text(
+                json.dumps(
+                    {
+                        "111111111": {
+                            "uniteLegale": {
+                                "categorieJuridiqueUniteLegale": "1000",
+                                "denominationUniteLegale": "CACHE EI",
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output_path = Path(temp_dir) / "out.csv"
+            progress = io.StringIO()
+
+            count = export_bordeaux_independants(
+                output_path=output_path,
+                cache_path=cache_path,
+                client=client,
+                progress_stream=progress,
+                enrich_delay_seconds=0,
+            )
+            rows = read_csv_rows(output_path)
+
+        self.assertEqual(2, count)
+        self.assertEqual(["222222222"], client.get_siren_calls)
+        self.assertIn("1/1 100%", progress.getvalue())
+        self.assertIn("1 établissement(s) repris depuis le cache", progress.getvalue())
+        self.assertEqual(
+            ["CACHE EI", "LIVE EI"],
+            [row["nom_ou_denomination"] for row in rows],
+        )
+
+    def test_count_uncached_etablissements_uses_cache_without_api(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_path = Path(temp_dir) / "cache.json"
+            cache_path.write_text(
+                json.dumps({"111111111": {"uniteLegale": {}}}),
+                encoding="utf-8",
+            )
+            cache = JsonSirenCache(cache_path)
+
+            count = count_uncached_etablissements(
+                [
+                    {"siren": "111111111", "siret": "11111111100011"},
+                    {"siren": "222222222", "siret": "22222222200022"},
+                    {"siret": "33333333300033"},
+                ],
+                cache,
+            )
+
+        self.assertEqual(2, count)
+
+    def test_extract_siren_from_etablissement_falls_back_to_siret(self) -> None:
+        self.assertEqual(
+            "123456789",
+            extract_siren_from_etablissement({"siret": "12345678900012"}),
+        )
+        self.assertEqual("", extract_siren_from_etablissement({}))
 
     def test_parse_args_supports_requested_command(self) -> None:
         args = parse_args(

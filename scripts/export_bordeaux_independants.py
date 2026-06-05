@@ -13,7 +13,8 @@ from typing import Any, TextIO
 from services.insee_sirene import InseeSireneClient
 from services.insee_sirene_mapping import (
     CSV_COLUMNS,
-    build_consolidated_etablissement_row,
+    extract_unite_legale,
+    map_etablissement_to_csv_row,
 )
 
 
@@ -136,20 +137,35 @@ def export_bordeaux_independants(
         cache,
         enrich_delay_seconds=enrich_delay_seconds,
     )
-    progress = ProgressBar(len(etablissements), progress_stream)
+    uncached_count = count_uncached_etablissements(etablissements, cache)
+    progress = ProgressBar(uncached_count, progress_stream)
     rows: list[dict[str, Any]] = []
     seen_sirens: set[str] = set()
     seen_sirets: set[str] = set()
+    skipped_cached = 0
 
     try:
         for etablissement in etablissements:
-            try:
-                row = build_consolidated_etablissement_row(
-                    cached_client,
+            siren = extract_siren_from_etablissement(etablissement)
+            if not siren:
+                continue
+
+            cached_payload = cache.get(siren)
+            if cached_payload is not None:
+                skipped_cached += 1
+                row = map_etablissement_to_csv_row(
                     etablissement,
+                    extract_unite_legale(cached_payload),
                 )
-            finally:
-                progress.advance()
+            else:
+                try:
+                    unite_legale_payload = cached_client.get_siren(siren)
+                    row = map_etablissement_to_csv_row(
+                        etablissement,
+                        extract_unite_legale(unite_legale_payload),
+                    )
+                finally:
+                    progress.advance()
 
             siren = str(row.get("siren") or "")
             siret = str(row.get("siret") or "")
@@ -169,10 +185,34 @@ def export_bordeaux_independants(
 
     write_csv(output_path, rows)
     progress_stream.write(
-        f"Export terminé: {len(rows)} lignes écrites dans {output_path}\n"
+        f"Export terminé: {len(rows)} lignes écrites dans {output_path}. "
+        f"{skipped_cached} établissement(s) repris depuis le cache.\n"
     )
     progress_stream.flush()
     return len(rows)
+
+
+def count_uncached_etablissements(
+    etablissements: list[dict[str, Any]],
+    cache: JsonSirenCache,
+) -> int:
+    uncached_sirens: set[str] = set()
+    for etablissement in etablissements:
+        siren = extract_siren_from_etablissement(etablissement)
+        if siren and cache.get(siren) is None:
+            uncached_sirens.add(siren)
+    return len(uncached_sirens)
+
+
+def extract_siren_from_etablissement(etablissement: dict[str, Any]) -> str:
+    siren = str(etablissement.get("siren") or "").strip()
+    if siren:
+        return siren
+
+    siret = str(etablissement.get("siret") or "").strip()
+    if len(siret) >= 9:
+        return siret[:9]
+    return ""
 
 
 def write_csv(output_path: Path, rows: list[dict[str, Any]]) -> None:
