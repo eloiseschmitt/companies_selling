@@ -277,6 +277,46 @@ python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
 
+## Qualité de code et tests
+
+Le projet utilise `requirements.txt` pour les dépendances runtime. Les outils de développement sont séparés dans `requirements-dev.txt`.
+
+Installer les dépendances de développement :
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+```
+
+Lint avec Ruff :
+
+```bash
+python -m ruff check .
+```
+
+Formater le code avec Ruff :
+
+```bash
+python -m ruff format .
+```
+
+Vérifier le typage statique avec mypy :
+
+```bash
+python -m mypy
+```
+
+Lancer la suite de tests existante :
+
+```bash
+python -m unittest discover -s tests
+```
+
+Notes :
+
+- `ruff` remplace ici le besoin de `black` pour le formatage ; `black` n'est pas ajouté car le projet ne l'utilise pas explicitement.
+- la configuration de `ruff` et `mypy` est centralisée dans `pyproject.toml`.
+- `mypy` est configuré de façon pragmatique pour analyser le code existant sans imposer immédiatement un typage strict sur toutes les fonctions.
+
 ## Lancer l'application web
 
 ```bash
