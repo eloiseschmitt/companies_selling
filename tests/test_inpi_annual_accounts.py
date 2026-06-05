@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 
 from services.inpi_annual_accounts import (
     API_BASE_URL,
-    LOGIN_URL,
     HTTP_ERROR_MESSAGES,
+    LOGIN_URL,
     InpiAnnualAccountsClient,
     InpiApiError,
     InpiAuthenticationError,
@@ -51,10 +51,13 @@ class InpiAnnualAccountsClientTest(unittest.TestCase):
         session = Mock()
         client = InpiAnnualAccountsClient(session=session)
 
-        with patch(
-            "services.inpi_annual_accounts.load_dotenv",
-            return_value=None,
-        ), patch.dict(os.environ, {}, clear=True):
+        with (
+            patch(
+                "services.inpi_annual_accounts.load_dotenv",
+                return_value=None,
+            ),
+            patch.dict(os.environ, {}, clear=True),
+        ):
             with self.assertRaises(MissingInpiCredentialsError):
                 client.authenticate()
 
@@ -271,10 +274,13 @@ class InpiAnnualAccountsClientTest(unittest.TestCase):
         session.get.return_value = download_response
         client = InpiAnnualAccountsClient(session=session)
 
-        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
-            os.environ,
-            {"SFTP_USER": "demo-user", "SFTP_PASSWORD": "demo-password"},
-            clear=True,
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.dict(
+                os.environ,
+                {"SFTP_USER": "demo-user", "SFTP_PASSWORD": "demo-password"},
+                clear=True,
+            ),
         ):
             output_path = Path(temp_dir) / "bilan.pdf"
 

@@ -7,13 +7,12 @@ import os
 import re
 import time
 from collections.abc import Mapping, Sequence
-from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import requests
 from dotenv import load_dotenv
-
 
 API_BASE_URL = "https://api.insee.fr/api-sirene/3.11"
 API_KEY_ENV_VAR = "INSEE_API_KEY"
@@ -143,7 +142,9 @@ class InseeSireneClient:
         if limit == 0:
             return []
         if page_size <= 0 or page_size > DEFAULT_PAGE_SIZE:
-            raise ValueError(f"page_size doit être compris entre 1 et {DEFAULT_PAGE_SIZE}.")
+            raise ValueError(
+                f"page_size doit être compris entre 1 et {DEFAULT_PAGE_SIZE}."
+            )
 
         query = build_etablissements_query(
             postal_codes=postal_codes,
@@ -161,15 +162,20 @@ class InseeSireneClient:
 
             params = {
                 "q": query,
-                "nombre": min(page_size, remaining) if remaining is not None else page_size,
+                "nombre": min(page_size, remaining)
+                if remaining is not None
+                else page_size,
                 "curseur": cursor,
             }
             payload = self._get("/siret", params=params)
             page = payload.get("etablissements") or []
             if not isinstance(page, list):
+                message = (
+                    "Réponse JSON SIRENE INSEE invalide: liste etablissements attendue."
+                )
                 raise InseeSireneApiError(
                     200,
-                    "Réponse JSON SIRENE INSEE invalide: liste etablissements attendue.",
+                    message,
                 )
 
             etablissements.extend(
@@ -182,9 +188,7 @@ class InseeSireneClient:
 
             header = payload.get("header") or {}
             next_cursor = (
-                header.get("curseurSuivant")
-                if isinstance(header, dict)
-                else None
+                header.get("curseurSuivant") if isinstance(header, dict) else None
             )
             if not page or not next_cursor or next_cursor == cursor:
                 return etablissements[:limit] if limit is not None else etablissements
@@ -239,9 +243,7 @@ class InseeSireneClient:
     ) -> float:
         headers = getattr(response, "headers", {}) or {}
         retry_after_header = (
-            headers.get("Retry-After")
-            if isinstance(headers, Mapping)
-            else None
+            headers.get("Retry-After") if isinstance(headers, Mapping) else None
         )
         retry_after = _parse_retry_after(retry_after_header)
         if retry_after is not None:

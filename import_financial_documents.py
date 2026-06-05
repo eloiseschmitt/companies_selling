@@ -20,7 +20,6 @@ from pypdf import PdfReader
 from init_financial_documents import create_financial_documents_table
 from services.inpi_sftp import InpiSFTPClient, is_directory
 
-
 DATABASE_FILE = "companies.db"
 DOCUMENT_SOURCE = "inpi_sftp"
 INPI_DOCUMENT_TYPE = "comptes_annuels_pdf"
@@ -34,9 +33,7 @@ REVENUE_LABELS = (
     "chiffre d'affaires",
     "chiffre d'affaires nets",
 )
-AMOUNT_PATTERN = re.compile(
-    r"(?<!\w)-?(?:\d{1,3}(?:[ .\u00a0]\d{3})+|\d+)(?:,\d+)?"
-)
+AMOUNT_PATTERN = re.compile(r"(?<!\w)-?(?:\d{1,3}(?:[ .\u00a0]\d{3})+|\d+)(?:,\d+)?")
 
 logger = logging.getLogger(__name__)
 
@@ -181,9 +178,7 @@ def normalize_digits(value: object, expected_length: int) -> str | None:
 
 def validate_siren(value: str) -> str:
     if not re.fullmatch(r"\d{9}", value):
-        raise argparse.ArgumentTypeError(
-            "--siren doit contenir exactement 9 chiffres."
-        )
+        raise argparse.ArgumentTypeError("--siren doit contenir exactement 9 chiffres.")
     return value
 
 
@@ -346,7 +341,7 @@ def extract_revenue_from_text(text: str) -> Decimal | None:
         if not amounts:
             continue
 
-        header = " ".join(lines[max(0, index - 3):index]).casefold()
+        header = " ".join(lines[max(0, index - 3) : index]).casefold()
         total_position = header.rfind("total")
         if total_position >= 0:
             right_side_amounts = [
@@ -1033,10 +1028,7 @@ def main() -> None:
         print(f"Statut: {summary['status']}")
         print(f"Années inspectées: {summary['years_inspected']}")
         print(f"Fichiers examinés: {summary['files_examined']}")
-        print(
-            "Durée de recherche: "
-            f"{summary['search_duration_seconds']:.2f}s"
-        )
+        print(f"Durée de recherche: {summary['search_duration_seconds']:.2f}s")
         return
 
     import_financial_documents(

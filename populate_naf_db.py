@@ -3,9 +3,10 @@ Script pour remplir la table naf_code dans la base de données SQLite
 avec les données du fichier int_courts_naf_rev_2.xls
 """
 
-import sqlite3
-import pandas as pd
 import os
+import sqlite3
+
+import pandas as pd
 
 # Chemin vers les fichiers
 DB_PATH = "companies.db"

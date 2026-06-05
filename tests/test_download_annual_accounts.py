@@ -221,9 +221,10 @@ class DownloadAnnualAccountsTest(unittest.TestCase):
             }
         )
 
-        with tempfile.TemporaryDirectory() as temp_dir, patch(
-            "download_annual_accounts.time.sleep"
-        ) as sleep_mock:
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch("download_annual_accounts.time.sleep") as sleep_mock,
+        ):
             temp_path = Path(temp_dir)
             input_path = temp_path / "input.csv"
             input_path.write_text("siren\n111111111\n222222222\n", encoding="utf-8")

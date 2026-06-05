@@ -47,9 +47,7 @@ class FakeSFTPClient:
             SimpleNamespace(
                 filename=name,
                 st_mode=(
-                    stat.S_IFDIR
-                    if self._is_dir(remote_path, name)
-                    else stat.S_IFREG
+                    stat.S_IFDIR if self._is_dir(remote_path, name) else stat.S_IFREG
                 ),
                 st_size=4096 if self._is_dir(remote_path, name) else 1234,
             )
@@ -65,9 +63,7 @@ def make_targeted_entries() -> dict[str, list[str]]:
         "Bilans_PDF": ["2024", "2025", "2026"],
         "Bilans_PDF/2026": ["06"],
         "Bilans_PDF/2026/06": ["01"],
-        "Bilans_PDF/2026/06/01": [
-            "CA_999999999_7401_2012B00001_2025_K00001"
-        ],
+        "Bilans_PDF/2026/06/01": ["CA_999999999_7401_2012B00001_2025_K00001"],
         "Bilans_PDF/2026/06/01/CA_999999999_7401_2012B00001_2025_K00001": [
             "CA_999999999_7401_2012B00001_2025_K00001.pdf"
         ],
@@ -89,9 +85,7 @@ def make_targeted_entries() -> dict[str, list[str]]:
         ],
         "Bilans_PDF/2024": ["12"],
         "Bilans_PDF/2024/12": ["31"],
-        "Bilans_PDF/2024/12/31": [
-            "CA_123456789_7401_2012B00001_2026_K99999"
-        ],
+        "Bilans_PDF/2024/12/31": ["CA_123456789_7401_2012B00001_2026_K99999"],
         "Bilans_PDF/2024/12/31/CA_123456789_7401_2012B00001_2026_K99999": [
             "CA_123456789_7401_2012B00001_2026_K99999.pdf"
         ],
@@ -145,14 +139,18 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         self.create_companies(["12345678900012"])
         fake_sftp = FakeSFTPClient()
 
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=fake_sftp,
-        ), patch.object(
-            importer,
-            "read_pdf_text",
-            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+                return_value=fake_sftp,
+            ),
+            patch.object(
+                importer,
+                "read_pdf_text",
+                return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+            ),
         ):
             stats = importer.import_financial_documents()
 
@@ -175,22 +173,26 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         self.create_companies(["12345678900012"])
         fake_sftp = FakeSFTPClient()
 
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=fake_sftp,
-        ), patch.object(
-            importer,
-            "read_pdf_text",
-            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
-        ) as read_pdf_text:
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+                return_value=fake_sftp,
+            ),
+            patch.object(
+                importer,
+                "read_pdf_text",
+                return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+            ) as read_pdf_text,
+        ):
             stats = importer.import_financial_documents(limit=1)
 
         conn = self.connect()
         try:
-            count = conn.execute(
-                "SELECT COUNT(*) FROM financial_documents"
-            ).fetchone()[0]
+            count = conn.execute("SELECT COUNT(*) FROM financial_documents").fetchone()[
+                0
+            ]
         finally:
             conn.close()
 
@@ -204,26 +206,34 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         first_sftp = FakeSFTPClient()
         second_sftp = FakeSFTPClient()
 
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=first_sftp,
-        ), patch.object(
-            importer,
-            "read_pdf_text",
-            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+                return_value=first_sftp,
+            ),
+            patch.object(
+                importer,
+                "read_pdf_text",
+                return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+            ),
         ):
             first_stats = importer.import_financial_documents(year="2026")
 
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=second_sftp,
-        ), patch.object(
-            importer,
-            "read_pdf_text",
-            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
-        ) as read_pdf_text:
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+                return_value=second_sftp,
+            ),
+            patch.object(
+                importer,
+                "read_pdf_text",
+                return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+            ) as read_pdf_text,
+        ):
             second_stats = importer.import_financial_documents(year="2026")
 
         self.assertEqual(3, first_stats.files_scanned)
@@ -237,25 +247,33 @@ class FinancialDocumentsImportTest(unittest.TestCase):
         first_sftp = FakeSFTPClient()
         second_sftp = FakeSFTPClient()
 
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=first_sftp,
-        ), patch.object(
-            importer,
-            "read_pdf_text",
-            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+                return_value=first_sftp,
+            ),
+            patch.object(
+                importer,
+                "read_pdf_text",
+                return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+            ),
         ):
             first_stats = importer.import_financial_documents(year="2026", limit=1)
 
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=second_sftp,
-        ), patch.object(
-            importer,
-            "read_pdf_text",
-            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+                return_value=second_sftp,
+            ),
+            patch.object(
+                importer,
+                "read_pdf_text",
+                return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+            ),
         ):
             second_stats = importer.import_financial_documents(year="2026")
 
@@ -282,13 +300,12 @@ class FinancialDocumentsImportTest(unittest.TestCase):
 
         for missing_name in complete_env:
             env = {
-                key: value
-                for key, value in complete_env.items()
-                if key != missing_name
+                key: value for key, value in complete_env.items() if key != missing_name
             }
             with self.subTest(missing_name=missing_name):
-                with patch.dict(os.environ, env, clear=True), patch(
-                    "services.inpi_sftp.load_env_file"
+                with (
+                    patch.dict(os.environ, env, clear=True),
+                    patch("services.inpi_sftp.load_env_file"),
                 ):
                     with self.assertRaisesRegex(
                         MissingSFTPCredentialsError,
@@ -382,15 +399,19 @@ class FinancialDocumentsImportTest(unittest.TestCase):
             conn.close()
 
         fake_sftp = FakeSFTPClient(make_targeted_entries())
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=fake_sftp,
-        ), patch.object(
-            importer,
-            "read_pdf_text",
-            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
-        ) as read_pdf_text:
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+                return_value=fake_sftp,
+            ),
+            patch.object(
+                importer,
+                "read_pdf_text",
+                return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+            ) as read_pdf_text,
+        ):
             summary = importer.import_financial_document_for_siren("123456789")
 
         conn = self.connect()
@@ -422,15 +443,19 @@ class FinancialDocumentsImportTest(unittest.TestCase):
             conn.close()
 
         fake_sftp = FakeSFTPClient()
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-            return_value=fake_sftp,
-        ), patch.object(
-            importer,
-            "read_pdf_text",
-            return_value="CHIFFRES D'AFFAIRES NETS 12 345",
-        ) as read_pdf_text:
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+                return_value=fake_sftp,
+            ),
+            patch.object(
+                importer,
+                "read_pdf_text",
+                return_value="CHIFFRES D'AFFAIRES NETS 12 345",
+            ) as read_pdf_text,
+        ):
             summary = importer.import_financial_document_for_siren(
                 "123456789",
                 year="2026",
@@ -443,10 +468,13 @@ class FinancialDocumentsImportTest(unittest.TestCase):
     def test_targeted_import_requires_company_siren(self) -> None:
         self.create_companies(["99999999900012"])
 
-        with patch.object(importer, "DATABASE_FILE", self.temp_db.name), patch.object(
-            importer.InpiSFTPClient,
-            "from_environment",
-        ) as from_environment:
+        with (
+            patch.object(importer, "DATABASE_FILE", self.temp_db.name),
+            patch.object(
+                importer.InpiSFTPClient,
+                "from_environment",
+            ) as from_environment,
+        ):
             with self.assertRaisesRegex(SystemExit, "absent de la table companies"):
                 importer.import_financial_document_for_siren("123456789")
 
@@ -464,20 +492,24 @@ class FinancialDocumentsImportTest(unittest.TestCase):
             "search_duration_seconds": 0.0,
         }
 
-        with patch(
-            "sys.argv",
-            [
-                "import_financial_documents.py",
-                "--siren",
-                "123456789",
-                "--year",
-                "2021",
-            ],
-        ), patch.object(
-            importer,
-            "import_financial_document_for_siren",
-            return_value=summary,
-        ) as import_for_siren, patch("builtins.print"):
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "import_financial_documents.py",
+                    "--siren",
+                    "123456789",
+                    "--year",
+                    "2021",
+                ],
+            ),
+            patch.object(
+                importer,
+                "import_financial_document_for_siren",
+                return_value=summary,
+            ) as import_for_siren,
+            patch("builtins.print"),
+        ):
             importer.main()
 
         import_for_siren.assert_called_once_with("123456789", year="2021")

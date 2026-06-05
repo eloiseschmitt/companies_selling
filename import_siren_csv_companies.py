@@ -3,7 +3,6 @@ import csv
 import os
 import sqlite3
 
-
 DATABASE_FILE = "companies.db"
 ESTABLISHMENT_FILE = "StockEtablissement_utf8.csv"
 LEGAL_UNIT_FILE = "StockUniteLegale_utf8.csv"
@@ -98,7 +97,9 @@ def load_companies_from_establishments(conn: sqlite3.Connection) -> None:
             if not should_keep_establishment(row):
                 continue
 
-            pending_rows.append(tuple(row.get(column, "") for column in COMPANY_COLUMNS))
+            pending_rows.append(
+                tuple(row.get(column, "") for column in COMPANY_COLUMNS)
+            )
             if len(pending_rows) >= CHUNK_SIZE:
                 insert_companies(conn, pending_rows)
                 pending_rows = []
@@ -199,8 +200,12 @@ def enrich_companies_from_legal_units(conn: sqlite3.Connection) -> None:
         for row in reader:
             scanned_rows += 1
             if scanned_rows % 1_000_000 == 0:
+                progress = (
+                    f"{scanned_rows} unités légales lues, "
+                    f"{matched_rows} correspondances trouvées"
+                )
                 print(
-                    f"{scanned_rows} unités légales lues, {matched_rows} correspondances trouvées",
+                    progress,
                     flush=True,
                 )
 
@@ -250,8 +255,12 @@ def main() -> None:
         if not args.enrich_only and os.path.exists(ESTABLISHMENT_FILE):
             load_companies_from_establishments(conn)
         elif not args.enrich_only:
+            message = (
+                f"{ESTABLISHMENT_FILE} introuvable, "
+                "enrichissement de la base existante uniquement"
+            )
             print(
-                f"{ESTABLISHMENT_FILE} introuvable, enrichissement de la base existante uniquement",
+                message,
                 flush=True,
             )
         enrich_companies_from_legal_units(conn)

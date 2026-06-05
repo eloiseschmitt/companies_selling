@@ -102,7 +102,9 @@ class InseeSireneMappingTest(unittest.TestCase):
         self.assertIn("score_priorisation", row)
         self.assertIn("raison_score", row)
 
-    def test_name_priority_uses_enseigne_then_unite_legale_then_person_name(self) -> None:
+    def test_name_priority_uses_enseigne_then_unite_legale_then_person_name(
+        self,
+    ) -> None:
         base_etablissement = {"siren": "123456789", "siret": "12345678900012"}
 
         self.assertEqual(
@@ -183,13 +185,11 @@ class InseeSireneMappingTest(unittest.TestCase):
         self.assertEqual(["123456789"], client.calls)
         self.assertEqual("ALPHA", row["nom_ou_denomination"])
 
-    def test_build_consolidated_row_extracts_siren_from_siret_when_missing(self) -> None:
+    def test_build_consolidated_row_extracts_siren_from_siret_when_missing(
+        self,
+    ) -> None:
         client = FakeSireneClient(
-            {
-                "123456789": {
-                    "uniteLegale": {"denominationUniteLegale": "ALPHA"}
-                }
-            }
+            {"123456789": {"uniteLegale": {"denominationUniteLegale": "ALPHA"}}}
         )
 
         row = build_consolidated_etablissement_row(

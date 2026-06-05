@@ -1,8 +1,7 @@
-import os
-import sqlite3
 import html
 import json
-from typing import List
+import os
+import sqlite3
 
 try:
     import pandas as pd
@@ -31,7 +30,7 @@ HEADERS = [
 ]
 
 
-def fetch_rows(db_path: str, cols: List[str]):
+def fetch_rows(db_path: str, cols: list[str]):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute(f"SELECT {', '.join(cols)} FROM companies")
@@ -42,7 +41,7 @@ def fetch_rows(db_path: str, cols: List[str]):
 
 def build_naf_map(xls_path: str):
     """Read the int_courts_naf_rev_2.xls file and return a dict code->libelle."""
-    naf_map = {}
+    naf_map: dict[str, str] = {}
     if not os.path.exists(xls_path):
         return naf_map
     if pd is None:
@@ -75,7 +74,7 @@ def build_naf_map(xls_path: str):
     return naf_map
 
 
-def render_table(cols: List[str], rows: List[tuple]) -> str:
+def render_table(cols: list[str], rows: list[tuple]) -> str:
     # cols here are the display headers
     head = "".join(f"<th>{html.escape(c)}</th>" for c in cols)
 

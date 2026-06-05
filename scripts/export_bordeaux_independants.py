@@ -17,7 +17,6 @@ from services.insee_sirene_mapping import (
     map_etablissement_to_csv_row,
 )
 
-
 DEFAULT_OUTPUT = Path("independants_bordeaux_metropole.csv")
 DEFAULT_CACHE = Path(".cache") / "insee_sirene_unites_legales.json"
 DEFAULT_ENRICH_DELAY_SECONDS = 1.0

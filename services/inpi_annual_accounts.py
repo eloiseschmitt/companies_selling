@@ -12,7 +12,6 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 
-
 LOGIN_URL = "https://registre-national-entreprises.inpi.fr/api/sso/login"
 API_BASE_URL = "https://registre-national-entreprises.inpi.fr/api"
 DEFAULT_TIMEOUT_SECONDS = 30
@@ -74,9 +73,7 @@ def select_best_bilan_pdf(
         return None, "only_deleted"
 
     public_bilans = [
-        bilan
-        for bilan in active_bilans
-        if bilan.get("confidentiality") == "Public"
+        bilan for bilan in active_bilans if bilan.get("confidentiality") == "Public"
     ]
     if not public_bilans:
         return None, "only_confidential"
@@ -123,6 +120,8 @@ class InpiAnnualAccountsClient:
         self._raise_for_known_http_error(response)
 
         payload = self._json_payload(response)
+        if not isinstance(payload, dict):
+            raise InpiAuthenticationError("Réponse de login INPI invalide.")
         token = payload.get("token")
         if not token:
             raise InpiAuthenticationError("Token INPI absent de la réponse de login.")
@@ -152,9 +151,7 @@ class InpiAnnualAccountsClient:
         if not content:
             raise InpiDownloadError("Le bilan PDF INPI téléchargé est vide.")
         if not content.startswith(b"%PDF"):
-            raise InpiDownloadError(
-                "Le bilan INPI téléchargé n'est pas un PDF valide."
-            )
+            raise InpiDownloadError("Le bilan INPI téléchargé n'est pas un PDF valide.")
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(content)
@@ -197,8 +194,7 @@ class InpiAnnualAccountsClient:
                 )
 
             should_retry = (
-                response.status_code in RETRYABLE_STATUS_CODES
-                and attempt < attempts
+                response.status_code in RETRYABLE_STATUS_CODES and attempt < attempts
             )
             if not should_retry:
                 return response

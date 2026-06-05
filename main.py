@@ -1,22 +1,23 @@
+import csv
+import io
+import os
+import re
+import sqlite3
+from datetime import date, datetime
+from urllib.parse import urlencode
+
+from dotenv import load_dotenv
 from fastapi import Request
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
-import csv
-import io
-import sqlite3
-import os
-import re
-from datetime import date, datetime
-from dotenv import load_dotenv
-from urllib.parse import urlencode
+
+from app import app
+from constants import MAPPING_HEADCOUNT
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-from constants import MAPPING_HEADCOUNT
-from app import app
-import admin
-
+import admin  # noqa: E402,F401
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 COMPANY_EXPORT_COLUMNS = [
@@ -56,8 +57,10 @@ def get_naf_parent_codes(code: str | None) -> tuple[str | None, str | None]:
     return level_2_code, level_3_code
 
 
-def build_display_rows(companies_list: list[dict], code_to_name: dict[str, str]) -> list[dict]:
-    """Construit les lignes à afficher en insérant les sections NAF avant les entreprises."""
+def build_display_rows(
+    companies_list: list[dict], code_to_name: dict[str, str]
+) -> list[dict]:
+    """Construit les lignes à afficher avec les sections NAF."""
     display_rows = []
     current_level_2 = None
     current_level_3 = None
@@ -251,12 +254,14 @@ def get_naf_code_map(conn: sqlite3.Connection) -> dict[str, str]:
 
 def format_company_row(row: sqlite3.Row, code_to_name: dict[str, str]) -> dict:
     company = dict(row)
+    headcount_code = company.get("trancheEffectifsEtablissement")
+    naf_code = company.get("activitePrincipaleEtablissement")
     company["trancheEffectifsEtablissement"] = MAPPING_HEADCOUNT.get(
-        company.get("trancheEffectifsEtablissement"),
-        company.get("trancheEffectifsEtablissement"),
+        str(headcount_code) if headcount_code is not None else "",
+        headcount_code,
     )
     company["libelle"] = code_to_name.get(
-        company.get("activitePrincipaleEtablissement"),
+        str(naf_code) if naf_code is not None else "",
         "",
     )
     return company
@@ -283,10 +288,7 @@ def build_companies_csv(companies: list[dict]) -> str:
     writer.writeheader()
     for company in companies:
         writer.writerow(
-            {
-                column: company.get(column, "")
-                for column in COMPANY_EXPORT_COLUMNS
-            }
+            {column: company.get(column, "") for column in COMPANY_EXPORT_COLUMNS}
         )
     return output.getvalue()
 
@@ -302,8 +304,10 @@ def company_is_older_than_30_years(creation_date: str | None) -> bool:
         return False
 
     today = date.today()
-    age = today.year - parsed_date.year - (
-        (today.month, today.day) < (parsed_date.month, parsed_date.day)
+    age = (
+        today.year
+        - parsed_date.year
+        - ((today.month, today.day) < (parsed_date.month, parsed_date.day))
     )
     return age > 30
 
@@ -362,14 +366,13 @@ def home(
 
     conn.close()
 
-    companies_list = [
-        format_company_row(row, code_to_name)
-        for row in companies
-    ]
+    companies_list = [format_company_row(row, code_to_name) for row in companies]
 
     display_rows = build_display_rows(companies_list, code_to_name)
     total_pages = (total_count + limit - 1) // limit
-    selected_section_name = code_to_name.get(selected_section, "") if selected_section else ""
+    selected_section_name = (
+        code_to_name.get(selected_section, "") if selected_section else ""
+    )
     selected_naf_code_names = [
         {"code": code, "name": code_to_name.get(code, "")}
         for code in selected_naf_codes
@@ -420,10 +423,7 @@ def export_companies_csv(
     code_to_name = get_naf_code_map(conn)
     conn.close()
 
-    companies_list = [
-        format_company_row(row, code_to_name)
-        for row in companies
-    ]
+    companies_list = [format_company_row(row, code_to_name) for row in companies]
     csv_content = build_companies_csv(companies_list)
     headers = {
         "Content-Disposition": 'attachment; filename="companies_export.csv"',
@@ -463,13 +463,15 @@ def naf_sections_page(request: Request):
 
 
 @app.get("/api/companies")
-def get_companies_api(page: int = 1, limit: int = 50, filter_activity: str = None):
+def get_companies_api(
+    page: int = 1, limit: int = 50, filter_activity: str | None = None
+):
     """API pour récupérer les entreprises en JSON."""
     conn = get_db_connection()
 
     # Requête de base
     query = "SELECT * FROM companies"
-    params = []
+    params: list[str | int] = []
 
     # Ajouter le filtre d'activité si fourni
     if filter_activity:
@@ -508,13 +510,15 @@ def get_companies_api(page: int = 1, limit: int = 50, filter_activity: str = Non
 
 
 @app.get("/api/naf_sections")
-def get_naf_sections_api(page: int = 1, limit: int = 50, filter_activity: str = None):
+def get_naf_sections_api(
+    page: int = 1, limit: int = 50, filter_activity: str | None = None
+):
     """API pour récupérer les sections naf en JSON."""
     conn = get_db_connection()
 
     # Requête de base
     query = "SELECT * FROM naf_code"
-    params = []
+    params: list[str | int] = []
 
     # Ajouter le filtre d'activité si fourni
     if filter_activity:

@@ -1,10 +1,12 @@
+import os
+
 from sqladmin import Admin, ModelView
 from sqlalchemy import Index, UniqueConstraint, create_engine
-from sqlalchemy.sql.expression import Select, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.sql.expression import Select, select
 from starlette.requests import Request
+
 from app import app
-import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 engine = create_engine(f"sqlite:///{os.path.join(BASE_DIR, 'companies.db')}")

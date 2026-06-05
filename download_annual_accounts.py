@@ -11,11 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from services.inpi_annual_accounts import (
-    InpiApiError,
     InpiAnnualAccountsClient,
+    InpiApiError,
     select_best_bilan_pdf,
 )
-
 
 DEFAULT_OUTPUT_DIR = Path("downloads/annual_accounts")
 DEFAULT_RESULTS_FILE = Path("annual_accounts_results.csv")
@@ -189,17 +188,13 @@ def empty_result_row(siren: str) -> dict[str, str]:
 
 def normalize_result_row(row: dict[str, str], siren: str) -> dict[str, str]:
     normalized = empty_result_row(siren)
-    normalized.update(
-        {column: str(row.get(column) or "") for column in RESULT_COLUMNS}
-    )
+    normalized.update({column: str(row.get(column) or "") for column in RESULT_COLUMNS})
     normalized["siren"] = siren
     return normalized
 
 
 def get_bilan_id(bilan: dict[str, Any]) -> str:
-    return str(
-        bilan.get("id") or bilan.get("bilan_id") or bilan.get("bilanId") or ""
-    )
+    return str(bilan.get("id") or bilan.get("bilan_id") or bilan.get("bilanId") or "")
 
 
 def build_output_path(output_dir: Path, siren: str, bilan_id: str) -> Path:

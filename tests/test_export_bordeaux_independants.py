@@ -134,9 +134,7 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
         client = FakeSireneClient(
             etablissements=[],
             unites_legales_by_siren={
-                "111111111": {
-                    "uniteLegale": {"categorieJuridiqueUniteLegale": "1000"}
-                }
+                "111111111": {"uniteLegale": {"categorieJuridiqueUniteLegale": "1000"}}
             },
         )
 

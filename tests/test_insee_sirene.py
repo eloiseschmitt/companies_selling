@@ -9,11 +9,11 @@ from services.insee_sirene import (
     API_KEY_HEADER,
     BORDEAUX_METROPOLE_POSTAL_CODES,
     HTTP_ERROR_MESSAGES,
+    TARGET_NAF_CODES,
     InseeSireneApiError,
     InseeSireneClient,
     InseeSireneRequestError,
     MissingInseeApiKeyError,
-    TARGET_NAF_CODES,
     build_etablissements_query,
     format_sirene_naf_code,
 )
@@ -63,10 +63,13 @@ class InseeSireneClientTest(unittest.TestCase):
         session = Mock()
         client = InseeSireneClient(session=session)
 
-        with patch("services.insee_sirene.load_dotenv"), patch.dict(
-            os.environ,
-            {},
-            clear=True,
+        with (
+            patch("services.insee_sirene.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {},
+                clear=True,
+            ),
         ):
             with self.assertRaises(MissingInseeApiKeyError):
                 client.get_siren("123456789")
@@ -115,11 +118,14 @@ class InseeSireneClientTest(unittest.TestCase):
             retry_delay_seconds=0.25,
         )
 
-        with patch.dict(
-            os.environ,
-            {"INSEE_API_KEY": "secret-key"},
-            clear=True,
-        ), patch("services.insee_sirene.time.sleep") as sleep_mock:
+        with (
+            patch.dict(
+                os.environ,
+                {"INSEE_API_KEY": "secret-key"},
+                clear=True,
+            ),
+            patch("services.insee_sirene.time.sleep") as sleep_mock,
+        ):
             payload = client.get_siren("123456789")
 
         self.assertEqual({"uniteLegale": {"siren": "123456789"}}, payload)
@@ -140,11 +146,14 @@ class InseeSireneClientTest(unittest.TestCase):
             retry_delay_seconds=0.25,
         )
 
-        with patch.dict(
-            os.environ,
-            {"INSEE_API_KEY": "secret-key"},
-            clear=True,
-        ), patch("services.insee_sirene.time.sleep") as sleep_mock:
+        with (
+            patch.dict(
+                os.environ,
+                {"INSEE_API_KEY": "secret-key"},
+                clear=True,
+            ),
+            patch("services.insee_sirene.time.sleep") as sleep_mock,
+        ):
             payload = client.get_siren("123456789")
 
         self.assertEqual({"uniteLegale": {"siren": "123456789"}}, payload)
@@ -177,11 +186,14 @@ class InseeSireneClientTest(unittest.TestCase):
         )
         client = InseeSireneClient(session=session)
 
-        with patch.dict(
-            os.environ,
-            {"INSEE_API_KEY": "secret-key"},
-            clear=True,
-        ), patch("services.insee_sirene.logger.error") as log_error:
+        with (
+            patch.dict(
+                os.environ,
+                {"INSEE_API_KEY": "secret-key"},
+                clear=True,
+            ),
+            patch("services.insee_sirene.logger.error") as log_error,
+        ):
             with self.assertRaises(InseeSireneApiError):
                 client.get_siren("123456789")
 
@@ -439,11 +451,14 @@ class InseeSireneClientTest(unittest.TestCase):
         ]
         client = InseeSireneClient(session=session)
 
-        with patch.dict(
-            os.environ,
-            {"INSEE_API_KEY": "secret-key"},
-            clear=True,
-        ), patch("services.insee_sirene.time.sleep") as sleep_mock:
+        with (
+            patch.dict(
+                os.environ,
+                {"INSEE_API_KEY": "secret-key"},
+                clear=True,
+            ),
+            patch("services.insee_sirene.time.sleep") as sleep_mock,
+        ):
             client.search_etablissements(
                 postal_codes=("33000",),
                 naf_codes=("8121Z",),

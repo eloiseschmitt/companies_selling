@@ -2,7 +2,6 @@
 
 import sqlite3
 
-
 DATABASE_FILE = "companies.db"
 
 

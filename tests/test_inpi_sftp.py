@@ -53,9 +53,7 @@ def make_entries() -> dict[str, list[str]]:
         "Bilans_PDF": ["2024", "2025", "2026"],
         "Bilans_PDF/2026": ["06"],
         "Bilans_PDF/2026/06": ["01"],
-        "Bilans_PDF/2026/06/01": [
-            "CA_999999999_7401_2012B00001_2025_K00001.pdf"
-        ],
+        "Bilans_PDF/2026/06/01": ["CA_999999999_7401_2012B00001_2025_K00001.pdf"],
         "Bilans_PDF/2025": ["12"],
         "Bilans_PDF/2025/12": ["31"],
         "Bilans_PDF/2025/12/31": [
@@ -65,9 +63,7 @@ def make_entries() -> dict[str, list[str]]:
         ],
         "Bilans_PDF/2024": ["12"],
         "Bilans_PDF/2024/12": ["31"],
-        "Bilans_PDF/2024/12/31": [
-            "CA_123456789_7401_2012B00001_2026_K99999.pdf"
-        ],
+        "Bilans_PDF/2024/12/31": ["CA_123456789_7401_2012B00001_2026_K99999.pdf"],
     }
 
 
@@ -150,9 +146,7 @@ class InpiSFTPDownloadTest(unittest.TestCase):
     def test_returns_none_when_no_financial_pdf_exists(self) -> None:
         client = make_client(make_entries())
 
-        self.assertIsNone(
-            find_latest_financial_pdf_path_for_siren(client, "111111111")
-        )
+        self.assertIsNone(find_latest_financial_pdf_path_for_siren(client, "111111111"))
 
     def test_downloads_latest_financial_pdf_to_destination(self) -> None:
         client = make_client(make_entries())
@@ -174,17 +168,22 @@ class InpiSFTPDownloadTest(unittest.TestCase):
     def test_download_does_not_write_database_or_parse_pdf(self) -> None:
         client = make_client(make_entries())
 
-        with tempfile.TemporaryDirectory() as temp_dir, patch(
-            "sqlite3.connect",
-            side_effect=AssertionError("La base ne doit pas être ouverte."),
-        ), patch.object(
-            client,
-            "read_binary_file",
-            side_effect=AssertionError("Le PDF ne doit pas être lu."),
-        ), patch.object(
-            client,
-            "read_text_file",
-            side_effect=AssertionError("Le PDF ne doit pas être parsé."),
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch(
+                "sqlite3.connect",
+                side_effect=AssertionError("La base ne doit pas être ouverte."),
+            ),
+            patch.object(
+                client,
+                "read_binary_file",
+                side_effect=AssertionError("Le PDF ne doit pas être lu."),
+            ),
+            patch.object(
+                client,
+                "read_text_file",
+                side_effect=AssertionError("Le PDF ne doit pas être parsé."),
+            ),
         ):
             local_path = client.download_latest_financial_pdf_for_siren(
                 "123456789",
@@ -200,10 +199,7 @@ class InpiSFTPDownloadTest(unittest.TestCase):
         client = make_client(make_entries())
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            local_path = (
-                Path(temp_dir)
-                / "CA_123456789_7401_2012B00001_2025_K00003.pdf"
-            )
+            local_path = Path(temp_dir) / "CA_123456789_7401_2012B00001_2025_K00003.pdf"
             local_path.write_bytes(b"existing")
 
             downloaded_path = client.download_latest_financial_pdf_for_siren(
@@ -220,10 +216,7 @@ class InpiSFTPDownloadTest(unittest.TestCase):
         client = make_client(make_entries())
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            local_path = (
-                Path(temp_dir)
-                / "CA_123456789_7401_2012B00001_2025_K00003.pdf"
-            )
+            local_path = Path(temp_dir) / "CA_123456789_7401_2012B00001_2025_K00003.pdf"
             local_path.write_bytes(b"existing")
 
             downloaded_path = client.download_latest_financial_pdf_for_siren(
@@ -261,10 +254,13 @@ class InpiSFTPDownloadTest(unittest.TestCase):
                 inpi_sftp.parse_args()
 
     def test_cli_rejects_invalid_siren(self) -> None:
-        with patch(
-            "sys.argv",
-            ["inpi_sftp.py", "--siren", "123"],
-        ), patch("sys.stderr", io.StringIO()):
+        with (
+            patch(
+                "sys.argv",
+                ["inpi_sftp.py", "--siren", "123"],
+            ),
+            patch("sys.stderr", io.StringIO()),
+        ):
             with self.assertRaises(SystemExit):
                 inpi_sftp.parse_args()
 
@@ -286,13 +282,17 @@ class InpiSFTPDownloadTest(unittest.TestCase):
             original_cwd = os.getcwd()
             try:
                 os.chdir(temp_dir)
-                with patch(
-                    "sys.argv",
-                    ["inpi_sftp.py", "--siren", "123456789"],
-                ), patch(
-                    "services.inpi_sftp.download_latest_financial_pdf_for_siren",
-                    side_effect=fake_download,
-                ), patch("builtins.print") as print_mock:
+                with (
+                    patch(
+                        "sys.argv",
+                        ["inpi_sftp.py", "--siren", "123456789"],
+                    ),
+                    patch(
+                        "services.inpi_sftp.download_latest_financial_pdf_for_siren",
+                        side_effect=fake_download,
+                    ),
+                    patch("builtins.print") as print_mock,
+                ):
                     inpi_sftp.main()
             finally:
                 os.chdir(original_cwd)
@@ -315,19 +315,23 @@ class InpiSFTPDownloadTest(unittest.TestCase):
                 self.assertTrue(destination_dir.exists())
                 return expected_path
 
-            with patch(
-                "sys.argv",
-                [
-                    "inpi_sftp.py",
-                    "--siren",
-                    "123456789",
-                    "--destination",
-                    str(destination),
-                ],
-            ), patch(
-                "services.inpi_sftp.download_latest_financial_pdf_for_siren",
-                side_effect=fake_download,
-            ), patch("builtins.print") as print_mock:
+            with (
+                patch(
+                    "sys.argv",
+                    [
+                        "inpi_sftp.py",
+                        "--siren",
+                        "123456789",
+                        "--destination",
+                        str(destination),
+                    ],
+                ),
+                patch(
+                    "services.inpi_sftp.download_latest_financial_pdf_for_siren",
+                    side_effect=fake_download,
+                ),
+                patch("builtins.print") as print_mock,
+            ):
                 inpi_sftp.main()
 
             print_mock.assert_called_once_with(f"PDF téléchargé: {expected_path}")
@@ -347,20 +351,24 @@ class InpiSFTPDownloadTest(unittest.TestCase):
                 self.assertTrue(force)
                 return expected_path
 
-            with patch(
-                "sys.argv",
-                [
-                    "inpi_sftp.py",
-                    "--siren",
-                    "123456789",
-                    "--destination",
-                    str(destination),
-                    "--force",
-                ],
-            ), patch(
-                "services.inpi_sftp.download_latest_financial_pdf_for_siren",
-                side_effect=fake_download,
-            ), patch("builtins.print") as print_mock:
+            with (
+                patch(
+                    "sys.argv",
+                    [
+                        "inpi_sftp.py",
+                        "--siren",
+                        "123456789",
+                        "--destination",
+                        str(destination),
+                        "--force",
+                    ],
+                ),
+                patch(
+                    "services.inpi_sftp.download_latest_financial_pdf_for_siren",
+                    side_effect=fake_download,
+                ),
+                patch("builtins.print") as print_mock,
+            ):
                 inpi_sftp.main()
 
             print_mock.assert_called_once_with(f"PDF téléchargé: {expected_path}")
@@ -369,19 +377,23 @@ class InpiSFTPDownloadTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             destination = Path(temp_dir) / "downloads"
 
-            with patch(
-                "sys.argv",
-                [
-                    "inpi_sftp.py",
-                    "--siren",
-                    "123456789",
-                    "--destination",
-                    str(destination),
-                ],
-            ), patch(
-                "services.inpi_sftp.download_latest_financial_pdf_for_siren",
-                return_value=None,
-            ), patch("builtins.print") as print_mock:
+            with (
+                patch(
+                    "sys.argv",
+                    [
+                        "inpi_sftp.py",
+                        "--siren",
+                        "123456789",
+                        "--destination",
+                        str(destination),
+                    ],
+                ),
+                patch(
+                    "services.inpi_sftp.download_latest_financial_pdf_for_siren",
+                    return_value=None,
+                ),
+                patch("builtins.print") as print_mock,
+            ):
                 inpi_sftp.main()
 
             self.assertTrue(destination.exists())

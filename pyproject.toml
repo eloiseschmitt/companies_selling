@@ -47,6 +47,7 @@ exclude = [
     ".venv",
     "__pycache__",
     "downloads",
+    "tests",
 ]
 ignore_missing_imports = true
 check_untyped_defs = true
@@ -63,6 +64,10 @@ pretty = true
 start-directory = "tests"
 pattern = "test*.py"
 top-level-directory = "."
+
+[tool.ruff.lint.per-file-ignores]
+"generate_companies_html.py" = ["E501"]
+"tests/*.py" = ["SIM115", "SIM117"]
 
 [tool.coverage.run]
 source = ["."]

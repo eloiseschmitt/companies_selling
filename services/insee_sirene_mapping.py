@@ -6,7 +6,6 @@ from collections.abc import Iterable
 from datetime import date, datetime
 from typing import Any, Protocol
 
-
 CSV_COLUMNS = (
     "siren",
     "siret",
@@ -58,7 +57,7 @@ def build_consolidated_etablissement_rows(
     client: SireneClient,
     etablissements: Iterable[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Enrichit chaque établissement avec son unité légale et retourne les lignes CSV."""
+    """Enrichit chaque établissement et retourne les lignes CSV."""
     return [
         build_consolidated_etablissement_row(client, etablissement)
         for etablissement in etablissements
@@ -89,9 +88,7 @@ def map_etablissement_to_csv_row(
     unite_legale: dict[str, Any],
 ) -> dict[str, Any]:
     """Mappe les données Etablissement et UniteLegale vers une ligne CSV."""
-    denomination_usuelle = _clean(
-        etablissement.get("denominationUsuelleEtablissement")
-    )
+    denomination_usuelle = _clean(etablissement.get("denominationUsuelleEtablissement"))
     enseigne_1 = _clean(etablissement.get("enseigne1Etablissement"))
     denomination = _clean(unite_legale.get("denominationUniteLegale"))
     nom_unite_legale = _clean(unite_legale.get("nomUniteLegale"))
@@ -102,9 +99,7 @@ def map_etablissement_to_csv_row(
         etablissement.get("activitePrincipaleEtablissement")
     )
     tranche_unite_legale = _clean(unite_legale.get("trancheEffectifsUniteLegale"))
-    tranche_etablissement = _clean(
-        etablissement.get("trancheEffectifsEtablissement")
-    )
+    tranche_etablissement = _clean(etablissement.get("trancheEffectifsEtablissement"))
     est_entrepreneur_individuel = categorie_juridique == "1000"
 
     numero_voie = _address_value(etablissement, "numeroVoieEtablissement")
@@ -141,7 +136,9 @@ def map_etablissement_to_csv_row(
         "activite_principale_unite_legale": activite_unite_legale,
         "activite_principale_etablissement": activite_etablissement,
         "code_naf_retenu": activite_etablissement or activite_unite_legale,
-        "date_creation_unite_legale": _clean(unite_legale.get("dateCreationUniteLegale")),
+        "date_creation_unite_legale": _clean(
+            unite_legale.get("dateCreationUniteLegale")
+        ),
         "date_creation_etablissement": _clean(
             etablissement.get("dateCreationEtablissement")
         ),
@@ -183,9 +180,7 @@ def map_etablissement_to_csv_row(
         compute_prioritization_score(
             activite_principale=row["code_naf_retenu"],
             date_creation_etablissement=row["date_creation_etablissement"],
-            caractere_employeur_unite_legale=row[
-                "caractere_employeur_unite_legale"
-            ],
+            caractere_employeur_unite_legale=row["caractere_employeur_unite_legale"],
             enseigne_1=row["enseigne_1"],
             enseigne_2=row["enseigne_2"],
             enseigne_3=row["enseigne_3"],
@@ -257,9 +252,13 @@ def compute_age_years(
         return None
 
     reference_date = today or date.today()
-    age = reference_date.year - creation_date.year - (
-        (reference_date.month, reference_date.day)
-        < (creation_date.month, creation_date.day)
+    age = (
+        reference_date.year
+        - creation_date.year
+        - (
+            (reference_date.month, reference_date.day)
+            < (creation_date.month, creation_date.day)
+        )
     )
     return max(0, age)
 
