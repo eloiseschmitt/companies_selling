@@ -210,7 +210,23 @@ La commande :
 - enrichit chaque établissement avec `/siren/{siren}` ;
 - conserve les unités légales dont `categorieJuridiqueUniteLegale == "1000"` ;
 - écrit un CSV UTF-8 avec BOM compatible Excel ;
-- utilise un cache JSON local, par défaut `.cache/insee_sirene_unites_legales.json`, pour éviter de rappeler plusieurs fois `/siren/{siren}`.
+- utilise un cache JSON local, par défaut `.cache/insee_sirene_unites_legales.json`, pour éviter de rappeler plusieurs fois `/siren/{siren}` ;
+- respecte les limites de débit avec retry sur `429`, prise en compte de `Retry-After` et backoff progressif.
+
+Options utiles :
+
+```bash
+python -m scripts.export_bordeaux_independants --output independants_bordeaux_metropole.csv --enrich-delay 2
+python -m scripts.export_bordeaux_independants --output test.csv --limit 50
+python -m scripts.export_bordeaux_independants --cache .cache/sirene.json --output independants.csv
+```
+
+Options disponibles :
+
+- `--output` : chemin du CSV de sortie ;
+- `--cache` : chemin du cache JSON local des réponses `/siren/{siren}` ;
+- `--limit` : nombre maximal d'établissements récupérés avant enrichissement ;
+- `--enrich-delay` : délai en secondes après chaque nouvel appel `/siren/{siren}`. Augmenter cette valeur si l'API renvoie encore des `429`.
 
 Codes NAF utilisés :
 
@@ -232,6 +248,7 @@ Limites connues :
 - l'API SIRENE ne donne pas toujours le statut micro-entrepreneur avec certitude ; la colonne `est_micro_entrepreneur_probable` est donc une approximation ;
 - les coordonnées téléphone/email ne sont pas disponibles dans SIRENE ;
 - le filtrage par code postal peut inclure des communes hors Bordeaux Métropole si le code postal est partagé.
+- l'API SIRENE retourne souvent les activités au format pointé, par exemple `81.21Z`, même si les constantes métier du projet utilisent `8121Z`.
 
 ### Table `naf_code`
 
@@ -285,6 +302,7 @@ Puis ouvrir :
 - `page` : numéro de page
 - `limit` : nombre de lignes par page
 - `section` : filtre par préfixe NAF
+- `naf_code` : filtre par un ou plusieurs codes NAF séparés par des virgules
 - `sort_score` : `asc` ou `desc`
 
 Exemples :
@@ -292,6 +310,7 @@ Exemples :
 ```text
 /?section=01
 /?section=15.1&sort_score=asc
+/?naf_code=68.20B,81.10Z
 /?page=3&section=56&sort_score=desc
 ```
 
@@ -299,14 +318,19 @@ Exemples :
 
 - `main.py` : application FastAPI principale
 - `populate_naf_db.py` : alimentation de la table `naf_code`
-- `retrieve_siren_companies.py` : import des entreprises dans `companies.db`
+- `import_siren_csv_companies.py` : import et enrichissement des entreprises dans `companies.db` depuis les fichiers stock SIRENE
 - `init_financial_documents.py` : création de la table `financial_documents`
 - `import_financial_documents.py` : import des métadonnées de documents financiers depuis le SFTP INPI
+- `download_annual_accounts.py` : téléchargement des derniers bilans PDF publics via l'API INPI/RNE
 - `generate_companies_html.py` : génération de `companies.html` en statique
+- `scripts/export_bordeaux_independants.py` : export CSV des entrepreneurs individuels ciblés depuis l'API SIRENE
 
 ## Services
 
 - `services/inpi_sftp.py` : connexion au SFTP INPI et listage des fichiers disponibles à partir de `SFTP_HOST`, `SFTP_USER` et `SFTP_PASSWORD`
+- `services/inpi_annual_accounts.py` : client HTTP minimal pour l'API INPI/RNE des comptes annuels
+- `services/insee_sirene.py` : client HTTP pour l'API SIRENE INSEE v3.11
+- `services/insee_sirene_mapping.py` : mapping des réponses SIRENE vers les lignes CSV consolidées
 
 ## Fichiers importants
 
