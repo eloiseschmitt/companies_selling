@@ -63,3 +63,16 @@ pretty = true
 start-directory = "tests"
 pattern = "test*.py"
 top-level-directory = "."
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    ".venv/*",
+    "venv/*",
+    "downloads/*",
+    "tests/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

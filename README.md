@@ -287,34 +287,54 @@ Installer les dépendances de développement :
 python3 -m pip install -r requirements-dev.txt
 ```
 
-Lint avec Ruff :
+Commandes locales via `Makefile` :
 
 ```bash
-python -m ruff check .
+make format    # ruff format .
+make lint      # ruff check .
+make type      # mypy .
+make test      # unittest
+make coverage  # unittest avec rapport de couverture
+make quality   # lint + mypy + tests
 ```
+
+Commandes équivalentes sans `make` :
 
 Formater le code avec Ruff :
 
 ```bash
-python -m ruff format .
+ruff format .
+```
+
+Lint avec Ruff :
+
+```bash
+ruff check .
 ```
 
 Vérifier le typage statique avec mypy :
 
 ```bash
-python -m mypy
+mypy .
 ```
 
 Lancer la suite de tests existante :
 
 ```bash
-python -m unittest discover -s tests
+python3 -m unittest discover -s tests
+```
+
+Lancer les tests avec couverture :
+
+```bash
+coverage run -m unittest discover -s tests
+coverage report -m
 ```
 
 Notes :
 
 - `ruff` remplace ici le besoin de `black` pour le formatage ; `black` n'est pas ajouté car le projet ne l'utilise pas explicitement.
-- la configuration de `ruff` et `mypy` est centralisée dans `pyproject.toml`.
+- la configuration de `ruff`, `mypy` et `coverage` est centralisée dans `pyproject.toml`.
 - `mypy` est configuré de façon pragmatique pour analyser le code existant sans imposer immédiatement un typage strict sur toutes les fonctions.
 
 ## Lancer l'application web
