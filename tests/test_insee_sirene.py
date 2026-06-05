@@ -7,11 +7,14 @@ import requests
 from services.insee_sirene import (
     API_BASE_URL,
     API_KEY_HEADER,
+    BORDEAUX_METROPOLE_POSTAL_CODES,
     HTTP_ERROR_MESSAGES,
     InseeSireneApiError,
     InseeSireneClient,
     InseeSireneRequestError,
     MissingInseeApiKeyError,
+    TARGET_NAF_CODES,
+    build_etablissements_query,
 )
 
 
@@ -189,6 +192,195 @@ class InseeSireneClientTest(unittest.TestCase):
         with patch.dict(os.environ, {"INSEE_API_KEY": "secret-key"}, clear=True):
             with self.assertRaises(InseeSireneApiError):
                 client.get_siren("123456789")
+
+    def test_build_etablissements_query_contains_target_filters(self) -> None:
+        query = build_etablissements_query(
+            postal_codes=("33000", "33100"),
+            naf_codes=("8121Z", "8129B"),
+        )
+
+        self.assertEqual(
+            "etatAdministratifEtablissement:A"
+            " AND etablissementSiege:true"
+            " AND (codePostalEtablissement:33000 OR codePostalEtablissement:33100)"
+            " AND (activitePrincipaleEtablissement:8121Z"
+            " OR activitePrincipaleEtablissement:8129B)",
+            query,
+        )
+
+    def test_search_etablissements_uses_siret_endpoint_q_and_cursor(self) -> None:
+        session = Mock()
+        session.get.return_value = make_response(
+            payload={
+                "header": {
+                    "curseur": "*",
+                    "curseurSuivant": "*",
+                    "nombre": 1,
+                    "total": 1,
+                },
+                "etablissements": [{"siret": "12345678900012"}],
+            }
+        )
+        client = InseeSireneClient(session=session)
+
+        with patch.dict(os.environ, {"INSEE_API_KEY": "secret-key"}, clear=True):
+            etablissements = client.search_etablissements(
+                postal_codes=("33000",),
+                naf_codes=("8121Z",),
+                page_delay_seconds=0,
+            )
+
+        self.assertEqual([{"siret": "12345678900012"}], etablissements)
+        session.get.assert_called_once_with(
+            f"{API_BASE_URL}/siret",
+            headers={API_KEY_HEADER: "secret-key"},
+            params={
+                "q": (
+                    "etatAdministratifEtablissement:A"
+                    " AND etablissementSiege:true"
+                    " AND codePostalEtablissement:33000"
+                    " AND activitePrincipaleEtablissement:8121Z"
+                ),
+                "nombre": 1000,
+                "curseur": "*",
+            },
+            timeout=30,
+        )
+
+    def test_search_etablissements_uses_default_bordeaux_and_naf_filters(self) -> None:
+        session = Mock()
+        session.get.return_value = make_response(
+            payload={
+                "header": {"curseur": "*", "curseurSuivant": "*"},
+                "etablissements": [],
+            }
+        )
+        client = InseeSireneClient(session=session)
+
+        with patch.dict(os.environ, {"INSEE_API_KEY": "secret-key"}, clear=True):
+            client.search_etablissements(page_delay_seconds=0)
+
+        params = session.get.call_args.kwargs["params"]
+        query = params["q"]
+        for postal_code in BORDEAUX_METROPOLE_POSTAL_CODES:
+            self.assertIn(f"codePostalEtablissement:{postal_code}", query)
+        for naf_code in TARGET_NAF_CODES:
+            self.assertIn(f"activitePrincipaleEtablissement:{naf_code}", query)
+        self.assertIn("etatAdministratifEtablissement:A", query)
+        self.assertIn("etablissementSiege:true", query)
+
+    def test_search_etablissements_paginates_with_cursor(self) -> None:
+        session = Mock()
+        session.get.side_effect = [
+            make_response(
+                payload={
+                    "header": {"curseur": "*", "curseurSuivant": "next-cursor"},
+                    "etablissements": [{"siret": "11111111100011"}],
+                }
+            ),
+            make_response(
+                payload={
+                    "header": {
+                        "curseur": "next-cursor",
+                        "curseurSuivant": "next-cursor",
+                    },
+                    "etablissements": [{"siret": "22222222200022"}],
+                }
+            ),
+        ]
+        client = InseeSireneClient(session=session)
+
+        with patch.dict(os.environ, {"INSEE_API_KEY": "secret-key"}, clear=True):
+            etablissements = client.search_etablissements(
+                postal_codes=("33000",),
+                naf_codes=("8121Z",),
+                page_delay_seconds=0,
+            )
+
+        self.assertEqual(
+            [{"siret": "11111111100011"}, {"siret": "22222222200022"}],
+            etablissements,
+        )
+        first_params = session.get.call_args_list[0].kwargs["params"]
+        second_params = session.get.call_args_list[1].kwargs["params"]
+        self.assertEqual("*", first_params["curseur"])
+        self.assertEqual("next-cursor", second_params["curseur"])
+        self.assertNotIn("debut", first_params)
+        self.assertNotIn("debut", second_params)
+
+    def test_search_etablissements_limit_caps_results_and_page_size(self) -> None:
+        session = Mock()
+        session.get.return_value = make_response(
+            payload={
+                "header": {"curseur": "*", "curseurSuivant": "ignored"},
+                "etablissements": [{"siret": "111"}, {"siret": "222"}],
+            }
+        )
+        client = InseeSireneClient(session=session)
+
+        with patch.dict(os.environ, {"INSEE_API_KEY": "secret-key"}, clear=True):
+            etablissements = client.search_etablissements(
+                limit=1,
+                postal_codes=("33000",),
+                naf_codes=("8121Z",),
+                page_delay_seconds=0,
+            )
+
+        self.assertEqual([{"siret": "111"}], etablissements)
+        self.assertEqual(1, session.get.call_args.kwargs["params"]["nombre"])
+
+    def test_search_etablissements_zero_limit_does_not_call_api(self) -> None:
+        session = Mock()
+        client = InseeSireneClient(session=session)
+
+        etablissements = client.search_etablissements(limit=0)
+
+        self.assertEqual([], etablissements)
+        session.get.assert_not_called()
+
+    def test_search_etablissements_validates_arguments(self) -> None:
+        client = InseeSireneClient(session=Mock())
+
+        with self.assertRaises(ValueError):
+            client.search_etablissements(limit=-1)
+        with self.assertRaises(ValueError):
+            client.search_etablissements(page_size=0)
+        with self.assertRaises(ValueError):
+            client.search_etablissements(postal_codes=())
+
+    def test_search_etablissements_sleeps_between_pages(self) -> None:
+        session = Mock()
+        session.get.side_effect = [
+            make_response(
+                payload={
+                    "header": {"curseur": "*", "curseurSuivant": "next-cursor"},
+                    "etablissements": [{"siret": "11111111100011"}],
+                }
+            ),
+            make_response(
+                payload={
+                    "header": {
+                        "curseur": "next-cursor",
+                        "curseurSuivant": "next-cursor",
+                    },
+                    "etablissements": [],
+                }
+            ),
+        ]
+        client = InseeSireneClient(session=session)
+
+        with patch.dict(
+            os.environ,
+            {"INSEE_API_KEY": "secret-key"},
+            clear=True,
+        ), patch("services.insee_sirene.time.sleep") as sleep_mock:
+            client.search_etablissements(
+                postal_codes=("33000",),
+                naf_codes=("8121Z",),
+                page_delay_seconds=0.5,
+            )
+
+        sleep_mock.assert_called_once_with(0.5)
 
 
 if __name__ == "__main__":

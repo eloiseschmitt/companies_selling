@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import time
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import requests
@@ -18,6 +19,38 @@ API_KEY_HEADER = "X-INSEE-Api-Key-Integration"
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_RETRY_ATTEMPTS = 2
 DEFAULT_RETRY_DELAY_SECONDS = 1.0
+DEFAULT_PAGE_SIZE = 1000
+DEFAULT_PAGE_DELAY_SECONDS = 0.25
+
+BORDEAUX_METROPOLE_POSTAL_CODES = (
+    "33000",
+    "33100",
+    "33110",
+    "33127",
+    "33130",
+    "33140",
+    "33150",
+    "33160",
+    "33170",
+    "33185",
+    "33200",
+    "33270",
+    "33290",
+    "33300",
+    "33310",
+    "33320",
+    "33370",
+    "33400",
+    "33440",
+    "33520",
+    "33530",
+    "33560",
+    "33600",
+    "33700",
+    "33800",
+    "33810",
+)
+TARGET_NAF_CODES = ("8121Z", "8129B", "8130Z", "8810A", "8810B")
 
 logger = logging.getLogger(__name__)
 
@@ -87,18 +120,90 @@ class InseeSireneClient:
         validate_siret(siret)
         return self._get(f"/siret/{siret}")
 
-    def _get(self, path: str) -> dict[str, Any]:
+    def search_etablissements(
+        self,
+        limit: int | None = None,
+        postal_codes: Sequence[str] = BORDEAUX_METROPOLE_POSTAL_CODES,
+        naf_codes: Sequence[str] = TARGET_NAF_CODES,
+        active: bool = True,
+        head_offices: bool = True,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        page_delay_seconds: float = DEFAULT_PAGE_DELAY_SECONDS,
+    ) -> list[dict[str, Any]]:
+        """Recherche les établissements bruts correspondant aux filtres ciblés."""
+        if limit is not None and limit < 0:
+            raise ValueError("limit doit être positif ou None.")
+        if limit == 0:
+            return []
+        if page_size <= 0 or page_size > DEFAULT_PAGE_SIZE:
+            raise ValueError(f"page_size doit être compris entre 1 et {DEFAULT_PAGE_SIZE}.")
+
+        query = build_etablissements_query(
+            postal_codes=postal_codes,
+            naf_codes=naf_codes,
+            active=active,
+            head_offices=head_offices,
+        )
+        etablissements: list[dict[str, Any]] = []
+        cursor = "*"
+
+        while True:
+            remaining = None if limit is None else limit - len(etablissements)
+            if remaining is not None and remaining <= 0:
+                return etablissements
+
+            params = {
+                "q": query,
+                "nombre": min(page_size, remaining) if remaining is not None else page_size,
+                "curseur": cursor,
+            }
+            payload = self._get("/siret", params=params)
+            page = payload.get("etablissements") or []
+            if not isinstance(page, list):
+                raise InseeSireneApiError(
+                    200,
+                    "Réponse JSON SIRENE INSEE invalide: liste etablissements attendue.",
+                )
+
+            etablissements.extend(
+                etablissement
+                for etablissement in page
+                if isinstance(etablissement, dict)
+            )
+            if limit is not None and len(etablissements) >= limit:
+                return etablissements[:limit]
+
+            header = payload.get("header") or {}
+            next_cursor = (
+                header.get("curseurSuivant")
+                if isinstance(header, dict)
+                else None
+            )
+            if not page or not next_cursor or next_cursor == cursor:
+                return etablissements[:limit] if limit is not None else etablissements
+
+            cursor = str(next_cursor)
+            if page_delay_seconds > 0:
+                time.sleep(page_delay_seconds)
+
+    def _get(
+        self,
+        path: str,
+        params: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         url = f"{self.base_url}{path}"
         headers = {API_KEY_HEADER: self._get_api_key()}
         attempts = max(1, self.retry_attempts)
+        request_kwargs: dict[str, Any] = {
+            "headers": headers,
+            "timeout": self.timeout,
+        }
+        if params is not None:
+            request_kwargs["params"] = dict(params)
 
         for attempt in range(1, attempts + 1):
             try:
-                response = self.session.get(
-                    url,
-                    headers=headers,
-                    timeout=self.timeout,
-                )
+                response = self.session.get(url, **request_kwargs)
             except requests.RequestException as exc:
                 raise InseeSireneRequestError(
                     f"Requête SIRENE INSEE impossible pour GET {url}: {exc}"
@@ -170,3 +275,30 @@ class InseeSireneClient:
                 "Réponse JSON SIRENE INSEE invalide: objet attendu.",
             )
         return payload
+
+
+def build_etablissements_query(
+    postal_codes: Sequence[str],
+    naf_codes: Sequence[str],
+    active: bool = True,
+    head_offices: bool = True,
+) -> str:
+    """Construit la requête multicritères SIRENE pour les établissements ciblés."""
+    clauses: list[str] = []
+    if active:
+        clauses.append("etatAdministratifEtablissement:A")
+    if head_offices:
+        clauses.append("etablissementSiege:true")
+
+    clauses.append(_or_clause("codePostalEtablissement", postal_codes))
+    clauses.append(_or_clause("activitePrincipaleEtablissement", naf_codes))
+    return " AND ".join(clauses)
+
+
+def _or_clause(field_name: str, values: Sequence[str]) -> str:
+    cleaned_values = [value.strip() for value in values if value.strip()]
+    if not cleaned_values:
+        raise ValueError(f"Au moins une valeur est requise pour {field_name}.")
+    if len(cleaned_values) == 1:
+        return f"{field_name}:{cleaned_values[0]}"
+    return "(" + " OR ".join(f"{field_name}:{value}" for value in cleaned_values) + ")"
