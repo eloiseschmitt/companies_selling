@@ -287,13 +287,20 @@ def build_etablissements_query(
 ) -> str:
     """Construit la requête multicritères SIRENE pour les établissements ciblés."""
     clauses: list[str] = []
-    if active:
-        clauses.append("etatAdministratifEtablissement:A")
     if head_offices:
         clauses.append("etablissementSiege:true")
 
     clauses.append(_or_clause("codePostalEtablissement", postal_codes))
-    clauses.append(_or_clause("activitePrincipaleEtablissement", naf_codes))
+    periode_clauses: list[str] = []
+    if active:
+        periode_clauses.append("etatAdministratifEtablissement:A")
+    periode_clauses.append(
+        _or_clause(
+            "activitePrincipaleEtablissement",
+            [format_sirene_naf_code(code) for code in naf_codes],
+        )
+    )
+    clauses.append(f"periode({' AND '.join(periode_clauses)})")
     return " AND ".join(clauses)
 
 
@@ -304,3 +311,11 @@ def _or_clause(field_name: str, values: Sequence[str]) -> str:
     if len(cleaned_values) == 1:
         return f"{field_name}:{cleaned_values[0]}"
     return "(" + " OR ".join(f"{field_name}:{value}" for value in cleaned_values) + ")"
+
+
+def format_sirene_naf_code(naf_code: str) -> str:
+    """Convertit un code NAF métier `8121Z` vers le format SIRENE `81.21Z`."""
+    cleaned_code = naf_code.strip().upper().replace(".", "")
+    if len(cleaned_code) == 5:
+        return f"{cleaned_code[:2]}.{cleaned_code[2:]}"
+    return naf_code.strip().upper()

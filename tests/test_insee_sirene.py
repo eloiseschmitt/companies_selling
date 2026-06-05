@@ -15,6 +15,7 @@ from services.insee_sirene import (
     MissingInseeApiKeyError,
     TARGET_NAF_CODES,
     build_etablissements_query,
+    format_sirene_naf_code,
 )
 
 
@@ -200,13 +201,17 @@ class InseeSireneClientTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            "etatAdministratifEtablissement:A"
-            " AND etablissementSiege:true"
+            "etablissementSiege:true"
             " AND (codePostalEtablissement:33000 OR codePostalEtablissement:33100)"
-            " AND (activitePrincipaleEtablissement:8121Z"
-            " OR activitePrincipaleEtablissement:8129B)",
+            " AND periode(etatAdministratifEtablissement:A"
+            " AND (activitePrincipaleEtablissement:81.21Z"
+            " OR activitePrincipaleEtablissement:81.29B))",
             query,
         )
+
+    def test_format_sirene_naf_code_adds_dot_expected_by_api(self) -> None:
+        self.assertEqual("81.21Z", format_sirene_naf_code("8121Z"))
+        self.assertEqual("81.21Z", format_sirene_naf_code("81.21Z"))
 
     def test_bordeaux_metropole_postal_codes_include_expected_values_once(self) -> None:
         expected_postal_codes = {
@@ -272,10 +277,10 @@ class InseeSireneClientTest(unittest.TestCase):
             headers={API_KEY_HEADER: "secret-key"},
             params={
                 "q": (
-                    "etatAdministratifEtablissement:A"
-                    " AND etablissementSiege:true"
+                    "etablissementSiege:true"
                     " AND codePostalEtablissement:33000"
-                    " AND activitePrincipaleEtablissement:8121Z"
+                    " AND periode(etatAdministratifEtablissement:A"
+                    " AND activitePrincipaleEtablissement:81.21Z)"
                 ),
                 "nombre": 1000,
                 "curseur": "*",
@@ -301,9 +306,13 @@ class InseeSireneClientTest(unittest.TestCase):
         for postal_code in BORDEAUX_METROPOLE_POSTAL_CODES:
             self.assertIn(f"codePostalEtablissement:{postal_code}", query)
         for naf_code in TARGET_NAF_CODES:
-            self.assertIn(f"activitePrincipaleEtablissement:{naf_code}", query)
+            self.assertIn(
+                f"activitePrincipaleEtablissement:{format_sirene_naf_code(naf_code)}",
+                query,
+            )
         self.assertIn("etatAdministratifEtablissement:A", query)
         self.assertIn("etablissementSiege:true", query)
+        self.assertIn("periode(", query)
 
     def test_search_etablissements_paginates_with_cursor(self) -> None:
         session = Mock()

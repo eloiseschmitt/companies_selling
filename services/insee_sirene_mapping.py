@@ -207,7 +207,7 @@ def compute_prioritization_score(
     score = 0
     reasons: list[str] = []
 
-    normalized_activity = _clean(activite_principale)
+    normalized_activity = _clean(activite_principale).replace(".", "")
     if normalized_activity == "8810A":
         score += 3
         reasons.append("activite_8810A:+3")

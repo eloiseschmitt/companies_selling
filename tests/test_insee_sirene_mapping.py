@@ -260,7 +260,7 @@ class InseeSireneMappingTest(unittest.TestCase):
 
     def test_compute_prioritization_score_scores_8121z_and_recent_penalty(self) -> None:
         score = compute_prioritization_score(
-            activite_principale="8121Z",
+            activite_principale="81.21Z",
             date_creation_etablissement="2026-01-10",
             caractere_employeur_unite_legale="N",
             today=date(2026, 6, 5),
