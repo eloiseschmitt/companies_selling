@@ -208,6 +208,42 @@ class InseeSireneClientTest(unittest.TestCase):
             query,
         )
 
+    def test_bordeaux_metropole_postal_codes_include_expected_values_once(self) -> None:
+        expected_postal_codes = {
+            "33000",
+            "33100",
+            "33200",
+            "33300",
+            "33800",
+            "33110",
+            "33130",
+            "33140",
+            "33150",
+            "33160",
+            "33170",
+            "33185",
+            "33270",
+            "33310",
+            "33320",
+            "33360",
+            "33370",
+            "33400",
+            "33440",
+            "33520",
+            "33530",
+            "33600",
+            "33700",
+            "33950",
+        }
+
+        self.assertTrue(
+            expected_postal_codes.issubset(set(BORDEAUX_METROPOLE_POSTAL_CODES))
+        )
+        self.assertEqual(
+            len(BORDEAUX_METROPOLE_POSTAL_CODES),
+            len(set(BORDEAUX_METROPOLE_POSTAL_CODES)),
+        )
+
     def test_search_etablissements_uses_siret_endpoint_q_and_cursor(self) -> None:
         session = Mock()
         session.get.return_value = make_response(

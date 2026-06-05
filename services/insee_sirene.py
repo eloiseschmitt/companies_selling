@@ -39,6 +39,7 @@ BORDEAUX_METROPOLE_POSTAL_CODES = (
     "33300",
     "33310",
     "33320",
+    "33360",
     "33370",
     "33400",
     "33440",
@@ -49,6 +50,7 @@ BORDEAUX_METROPOLE_POSTAL_CODES = (
     "33700",
     "33800",
     "33810",
+    "33950",
 )
 TARGET_NAF_CODES = ("8121Z", "8129B", "8130Z", "8810A", "8810B")
 
