@@ -7,12 +7,15 @@ from datetime import date, datetime
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from app import app
 from constants import MAPPING_HEADCOUNT
+from services.independants_csv import ALLOWED_SORT_COLUMNS
+from services.independants_csv import list_independants as list_csv_independants
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -20,6 +23,7 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 import admin  # noqa: E402,F401
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+MAX_INDEPENDANTS_LIMIT = 200
 COMPANY_EXPORT_COLUMNS = [
     "siren",
     "siret",
@@ -33,6 +37,30 @@ COMPANY_EXPORT_COLUMNS = [
     "libelle",
     "score",
 ]
+
+
+class IndependantItem(BaseModel):
+    siren: str
+    siret: str
+    nom_ou_denomination: str
+    commune: str
+    code_postal: str
+    code_naf_retenu: str
+    date_creation_etablissement: str
+    age_etablissement_annees: int | None
+    categorie_juridique_unite_legale: str
+    est_entrepreneur_individuel: bool
+    est_micro_entrepreneur_probable: bool
+    caractere_employeur_unite_legale: str
+    score_priorisation: int
+    adresse_complete: str
+
+
+class IndependantsResponse(BaseModel):
+    items: list[IndependantItem]
+    total: int
+    limit: int
+    offset: int
 
 
 def get_db_connection():
@@ -432,6 +460,62 @@ def export_companies_csv(
         content=csv_content,
         media_type="text/csv; charset=utf-8",
         headers=headers,
+    )
+
+
+@app.get("/independants", response_model=IndependantsResponse)
+def get_independants(
+    q: str | None = None,
+    commune: str | None = None,
+    code_postal: str | None = None,
+    code_naf: str | None = None,
+    score_min: str | None = None,
+    employeur: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str = "asc",
+    limit: int = 50,
+    offset: int = 0,
+) -> IndependantsResponse:
+    """Retourne les indépendants exportés depuis le CSV consolidé SIRENE."""
+    if limit < 1 or limit > MAX_INDEPENDANTS_LIMIT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"limit doit être compris entre 1 et {MAX_INDEPENDANTS_LIMIT}.",
+        )
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset doit être positif.")
+    if sort_by and sort_by not in ALLOWED_SORT_COLUMNS:
+        raise HTTPException(status_code=400, detail=f"Tri non autorisé: {sort_by}")
+    if sort_order not in {"asc", "desc"}:
+        raise HTTPException(
+            status_code=400,
+            detail="sort_order doit valoir 'asc' ou 'desc'.",
+        )
+
+    filters = {
+        "q": q,
+        "commune": commune,
+        "code_postal": code_postal,
+        "code_naf": code_naf,
+        "score_min": score_min,
+        "employeur": employeur,
+    }
+    sort = {"column": sort_by, "direction": sort_order} if sort_by else {}
+
+    try:
+        page = list_csv_independants(
+            filters=filters,
+            sort=sort,
+            pagination={"limit": limit, "offset": offset},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return IndependantsResponse(
+        items=[IndependantItem.model_validate(item) for item in page["data"]],
+        total=page["total"],
+        limit=page["limit"],
+        offset=page["offset"],
     )
 
 
