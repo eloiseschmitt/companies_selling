@@ -319,8 +319,8 @@ def build_etablissements_query(
     clauses.append(_or_clause("codePostalEtablissement", postal_codes))
     periode_clauses: list[str] = []
     if active:
+        clauses.append("etatAdministratifUniteLegale:A")
         periode_clauses.append("etatAdministratifEtablissement:A")
-        periode_clauses.append("etatAdministratifUniteLegale:A")
     periode_clauses.append(
         _or_clause(
             "activitePrincipaleEtablissement",

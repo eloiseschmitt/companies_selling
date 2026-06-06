@@ -240,8 +240,8 @@ class InseeSireneClientTest(unittest.TestCase):
         self.assertEqual(
             "etablissementSiege:true"
             " AND (codePostalEtablissement:33000 OR codePostalEtablissement:33100)"
-            " AND periode(etatAdministratifEtablissement:A"
             " AND etatAdministratifUniteLegale:A"
+            " AND periode(etatAdministratifEtablissement:A"
             " AND (activitePrincipaleEtablissement:81.21Z"
             " OR activitePrincipaleEtablissement:81.29B))",
             query,
@@ -317,8 +317,8 @@ class InseeSireneClientTest(unittest.TestCase):
                 "q": (
                     "etablissementSiege:true"
                     " AND codePostalEtablissement:33000"
-                    " AND periode(etatAdministratifEtablissement:A"
                     " AND etatAdministratifUniteLegale:A"
+                    " AND periode(etatAdministratifEtablissement:A"
                     " AND activitePrincipaleEtablissement:81.21Z)"
                 ),
                 "nombre": 1000,
