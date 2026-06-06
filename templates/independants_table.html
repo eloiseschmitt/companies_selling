@@ -218,6 +218,83 @@
         .dataTables-info strong {
             color: #431407;
         }
+
+        .summary-panel {
+            display: grid;
+            gap: 10px;
+            margin: 18px 0;
+            padding: 14px 16px;
+            background: #eef8f4;
+            border: 1px solid #badbcc;
+            border-radius: 8px;
+            color: #134e4a;
+        }
+
+        .summary-title {
+            font-weight: 800;
+            color: #0f3f3b;
+        }
+
+        .active-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-badge,
+        .naf-badge,
+        .profile-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .filter-badge {
+            padding: 5px 9px;
+            background: #dbeafe;
+            color: #1e3a8a;
+            font-size: 0.88em;
+        }
+
+        .naf-badge {
+            padding: 6px 10px;
+            background: #e0f2fe;
+            color: #075985;
+            font-size: 0.9em;
+        }
+
+        .profile-badge {
+            padding: 5px 9px;
+            font-size: 0.85em;
+        }
+
+        .profile-yes {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .profile-no {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .interesting-row {
+            background: #fff7cc !important;
+        }
+
+        .maps-link {
+            display: inline-block;
+            margin-top: 4px;
+            color: #1d6fa5;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .maps-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 
@@ -245,6 +322,24 @@
             {{ max_limit }} lignes.
             DataTables est chargé via CDN car aucun asset local n'est configuré dans ce projet.
         </div>
+
+        <section class="summary-panel" aria-label="Résumé des résultats">
+            <div class="summary-title">
+                {{ total }} résultat{{ "s" if total != 1 else "" }} trouvé{{ "s" if total != 1 else "" }}
+            </div>
+            <div>
+                <strong>Filtres actifs :</strong>
+                {% if active_filters %}
+                <div class="active-filters">
+                    {% for filter in active_filters %}
+                    <span class="filter-badge">{{ filter.label }} : {{ filter.value }}</span>
+                    {% endfor %}
+                </div>
+                {% else %}
+                Aucun filtre serveur actif.
+                {% endif %}
+            </div>
+        </section>
 
         <form class="filters" method="get" action="/independants/table">
             <div class="filter-field">
@@ -322,29 +417,47 @@
                         <th data-column-name="date_creation_etablissement">Date création<span class="sort-indicator"></span></th>
                         <th data-column-name="age_etablissement_annees">Âge<span class="sort-indicator"></span></th>
                         <th>Employeur</th>
+                        <th>Profil intéressant</th>
                         <th data-column-name="score_priorisation">Score<span class="sort-indicator"></span></th>
                         <th>Adresse</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in items %}
-                    <tr>
+                    <tr class="{{ item.row_class }}">
                         <td>
                             <div class="name">{{ item.nom_ou_denomination }}</div>
                             <div class="mono">{{ item.siren }}</div>
                         </td>
                         <td>{{ item.commune }}</td>
                         <td class="mono">{{ item.code_postal }}</td>
-                        <td class="mono">{{ item.code_naf_retenu }}</td>
+                        <td>
+                            <span class="naf-badge" title="{{ item.code_naf_normalise }}">
+                                {{ item.code_naf_label }}
+                            </span>
+                        </td>
                         <td>{{ item.date_creation_etablissement }}</td>
                         <td>{{ item.age_etablissement_annees if item.age_etablissement_annees is not none else "" }}</td>
                         <td>{{ "Oui" if item.caractere_employeur_unite_legale == "O" else "Non" }}</td>
+                        <td>
+                            {% if item.profil_interessant %}
+                            <span class="profile-badge profile-yes">Oui</span>
+                            {% else %}
+                            <span class="profile-badge profile-no">Non</span>
+                            {% endif %}
+                        </td>
                         <td class="score">{{ item.score_priorisation }}</td>
-                        <td>{{ item.adresse_complete }}</td>
+                        <td>
+                            {{ item.adresse_complete }}
+                            {% if item.google_maps_url %}
+                            <br>
+                            <a class="maps-link" href="{{ item.google_maps_url }}" target="_blank" rel="noopener noreferrer">Google Maps</a>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td class="empty" colspan="9">Aucun indépendant trouvé avec ces filtres.</td>
+                        <td class="empty" colspan="10">Aucun indépendant trouvé avec ces filtres.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -394,7 +507,7 @@
                 },
                 order: [],
                 columnDefs: [
-                    { targets: [6, 8], orderable: false }
+                    { targets: [6, 7, 9], orderable: false }
                 ],
                 pageLength: 25,
                 lengthMenu: [10, 25, 50, 100],

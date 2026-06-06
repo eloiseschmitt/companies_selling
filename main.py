@@ -4,7 +4,7 @@ import os
 import re
 import sqlite3
 from datetime import date, datetime
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request
@@ -25,6 +25,14 @@ import admin  # noqa: E402,F401
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 MAX_INDEPENDANTS_LIMIT = 200
 MAX_INDEPENDANTS_TABLE_LIMIT = 500
+INTERESTING_PROFILE_MIN_SCORE = 6
+NAF_BADGES = {
+    "8121Z": "Ménage / nettoyage courant",
+    "8129B": "Nettoyage divers",
+    "8130Z": "Jardinage",
+    "8810A": "Aide à domicile",
+    "8810B": "Accompagnement social",
+}
 INDEPENDANTS_TABLE_SORT_COLUMNS = (
     "nom_ou_denomination",
     "commune",
@@ -350,6 +358,64 @@ def build_independants_query_string(
     return urlencode(params)
 
 
+def build_active_independants_filters(
+    q: str | None,
+    commune: str | None,
+    code_postal: str | None,
+    code_naf: str | None,
+    score_min: str | None,
+    employeur: str | None,
+) -> list[dict[str, str]]:
+    filters = []
+    for label, value in (
+        ("Recherche", q),
+        ("Commune", commune),
+        ("Code postal", code_postal),
+        ("Code NAF", code_naf),
+        ("Score minimum", score_min),
+        ("Employeur", employeur),
+    ):
+        if value not in (None, ""):
+            filters.append({"label": label, "value": str(value)})
+    return filters
+
+
+def enrich_independants_table_rows(rows: list[dict]) -> list[dict]:
+    return [enrich_independant_table_row(row) for row in rows]
+
+
+def enrich_independant_table_row(row: dict) -> dict:
+    code_naf = normalize_independant_naf_code(row.get("code_naf_retenu"))
+    score = int(row.get("score_priorisation") or 0)
+    maps_query = " ".join(
+        str(part)
+        for part in (
+            row.get("adresse_complete"),
+            row.get("code_postal"),
+            row.get("commune"),
+        )
+        if part
+    )
+    return {
+        **row,
+        "code_naf_normalise": code_naf,
+        "code_naf_label": NAF_BADGES.get(code_naf, code_naf or "Activité inconnue"),
+        "profil_interessant": score >= INTERESTING_PROFILE_MIN_SCORE,
+        "row_class": (
+            "interesting-row" if score >= INTERESTING_PROFILE_MIN_SCORE else ""
+        ),
+        "google_maps_url": (
+            f"https://www.google.com/maps/search/?api=1&query={quote_plus(maps_query)}"
+            if maps_query
+            else ""
+        ),
+    }
+
+
+def normalize_independant_naf_code(value: object) -> str:
+    return str(value or "").replace(".", "").strip().upper()
+
+
 def build_companies_csv(companies: list[dict]) -> str:
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=COMPANY_EXPORT_COLUMNS)
@@ -644,7 +710,7 @@ def independants_table(
         "independants_table.html",
         {
             "request": request,
-            "items": page["data"],
+            "items": enrich_independants_table_rows(page["data"]),
             "total": page["total"],
             "limit": limit,
             "max_limit": MAX_INDEPENDANTS_TABLE_LIMIT,
@@ -657,6 +723,14 @@ def independants_table(
             "employeur": employeur or "",
             "sort_by": sort_by or "",
             "sort_order": sort_order,
+            "active_filters": build_active_independants_filters(
+                q=q,
+                commune=commune,
+                code_postal=code_postal,
+                code_naf=code_naf,
+                score_min=score_min,
+                employeur=employeur,
+            ),
             "has_previous": has_previous,
             "has_next": has_next,
             "previous_url": f"/independants/table?{previous_query}",
