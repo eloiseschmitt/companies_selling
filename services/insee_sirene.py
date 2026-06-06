@@ -320,6 +320,7 @@ def build_etablissements_query(
     periode_clauses: list[str] = []
     if active:
         periode_clauses.append("etatAdministratifEtablissement:A")
+        periode_clauses.append("etatAdministratifUniteLegale:A")
     periode_clauses.append(
         _or_clause(
             "activitePrincipaleEtablissement",

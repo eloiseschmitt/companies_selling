@@ -83,11 +83,25 @@ def extract_unite_legale(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def etablissement_is_active(etablissement: dict[str, Any]) -> bool:
+    """Retourne True si l'établissement courant est actif."""
+    current = _with_current_etablissement_period(etablissement)
+    return _clean(current.get("etatAdministratifEtablissement")) == "A"
+
+
+def unite_legale_is_active(unite_legale: dict[str, Any]) -> bool:
+    """Retourne True si l'unité légale courante est active."""
+    current = _with_current_unite_legale_period(unite_legale)
+    return _clean(current.get("etatAdministratifUniteLegale")) == "A"
+
+
 def map_etablissement_to_csv_row(
     etablissement: dict[str, Any],
     unite_legale: dict[str, Any],
 ) -> dict[str, Any]:
     """Mappe les données Etablissement et UniteLegale vers une ligne CSV."""
+    etablissement = _with_current_etablissement_period(etablissement)
+    unite_legale = _with_current_unite_legale_period(unite_legale)
     denomination_usuelle = _clean(etablissement.get("denominationUsuelleEtablissement"))
     enseigne_1 = _clean(etablissement.get("enseigne1Etablissement"))
     denomination = _clean(unite_legale.get("denominationUniteLegale"))
@@ -327,6 +341,27 @@ def _with_current_unite_legale_period(unite_legale: dict[str, Any]) -> dict[str,
         return unite_legale
 
     return {**unite_legale, **current_period}
+
+
+def _with_current_etablissement_period(
+    etablissement: dict[str, Any],
+) -> dict[str, Any]:
+    periods = etablissement.get("periodesEtablissement")
+    if not isinstance(periods, list):
+        return etablissement
+
+    current_period = next(
+        (
+            period
+            for period in periods
+            if isinstance(period, dict) and period.get("dateFin") is None
+        ),
+        None,
+    )
+    if current_period is None:
+        return etablissement
+
+    return {**etablissement, **current_period}
 
 
 def _address_value(etablissement: dict[str, Any], field_name: str) -> str:

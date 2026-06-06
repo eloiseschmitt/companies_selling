@@ -13,8 +13,10 @@ from typing import Any, TextIO
 from services.insee_sirene import InseeSireneClient
 from services.insee_sirene_mapping import (
     CSV_COLUMNS,
+    etablissement_is_active,
     extract_unite_legale,
     map_etablissement_to_csv_row,
+    unite_legale_is_active,
 )
 
 DEFAULT_OUTPUT = Path("independants_bordeaux_metropole.csv")
@@ -145,6 +147,9 @@ def export_bordeaux_independants(
 
     try:
         for etablissement in etablissements:
+            if not etablissement_is_active(etablissement):
+                continue
+
             siren = extract_siren_from_etablissement(etablissement)
             if not siren:
                 continue
@@ -152,16 +157,22 @@ def export_bordeaux_independants(
             cached_payload = cache.get(siren)
             if cached_payload is not None:
                 skipped_cached += 1
+                unite_legale = extract_unite_legale(cached_payload)
+                if not unite_legale_is_active(unite_legale):
+                    continue
                 row = map_etablissement_to_csv_row(
                     etablissement,
-                    extract_unite_legale(cached_payload),
+                    unite_legale,
                 )
             else:
                 try:
                     unite_legale_payload = cached_client.get_siren(siren)
+                    unite_legale = extract_unite_legale(unite_legale_payload)
+                    if not unite_legale_is_active(unite_legale):
+                        continue
                     row = map_etablissement_to_csv_row(
                         etablissement,
-                        extract_unite_legale(unite_legale_payload),
+                        unite_legale,
                     )
                 finally:
                     progress.advance()

@@ -241,6 +241,7 @@ class InseeSireneClientTest(unittest.TestCase):
             "etablissementSiege:true"
             " AND (codePostalEtablissement:33000 OR codePostalEtablissement:33100)"
             " AND periode(etatAdministratifEtablissement:A"
+            " AND etatAdministratifUniteLegale:A"
             " AND (activitePrincipaleEtablissement:81.21Z"
             " OR activitePrincipaleEtablissement:81.29B))",
             query,
@@ -317,6 +318,7 @@ class InseeSireneClientTest(unittest.TestCase):
                     "etablissementSiege:true"
                     " AND codePostalEtablissement:33000"
                     " AND periode(etatAdministratifEtablissement:A"
+                    " AND etatAdministratifUniteLegale:A"
                     " AND activitePrincipaleEtablissement:81.21Z)"
                 ),
                 "nombre": 1000,
@@ -348,6 +350,7 @@ class InseeSireneClientTest(unittest.TestCase):
                 query,
             )
         self.assertIn("etatAdministratifEtablissement:A", query)
+        self.assertIn("etatAdministratifUniteLegale:A", query)
         self.assertIn("etablissementSiege:true", query)
         self.assertIn("periode(", query)
 

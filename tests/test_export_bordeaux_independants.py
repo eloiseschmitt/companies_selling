@@ -52,24 +52,28 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
                     "denominationUsuelleEtablissement": "EI CLEAN",
                     "codePostalEtablissement": "33000",
                     "libelleCommuneEtablissement": "BORDEAUX",
+                    "etatAdministratifEtablissement": "A",
                 },
                 {
                     "siren": "111111111",
                     "siret": "11111111100011",
                     "nic": "00011",
                     "activitePrincipaleEtablissement": "8121Z",
+                    "etatAdministratifEtablissement": "A",
                 },
                 {
                     "siren": "222222222",
                     "siret": "22222222200022",
                     "nic": "00022",
                     "activitePrincipaleEtablissement": "8130Z",
+                    "etatAdministratifEtablissement": "A",
                 },
             ],
             unites_legales_by_siren={
                 "111111111": {
                     "uniteLegale": {
                         "categorieJuridiqueUniteLegale": "1000",
+                        "etatAdministratifUniteLegale": "A",
                         "nomUniteLegale": "DUPONT",
                         "prenomUsuelUniteLegale": "ALICE",
                     }
@@ -77,6 +81,7 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
                 "222222222": {
                     "uniteLegale": {
                         "categorieJuridiqueUniteLegale": "5710",
+                        "etatAdministratifUniteLegale": "A",
                         "denominationUniteLegale": "BETA SARL",
                     }
                 },
@@ -155,7 +160,11 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
     def test_export_reuses_existing_cache_file(self) -> None:
         client = FakeSireneClient(
             etablissements=[
-                {"siren": "111111111", "siret": "11111111100011"},
+                {
+                    "siren": "111111111",
+                    "siret": "11111111100011",
+                    "etatAdministratifEtablissement": "A",
+                },
             ],
             unites_legales_by_siren={},
         )
@@ -168,6 +177,7 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
                         "111111111": {
                             "uniteLegale": {
                                 "categorieJuridiqueUniteLegale": "1000",
+                                "etatAdministratifUniteLegale": "A",
                                 "denominationUniteLegale": "CACHE EI",
                             }
                         }
@@ -193,13 +203,22 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
     def test_export_progress_only_counts_uncached_etablissements(self) -> None:
         client = FakeSireneClient(
             etablissements=[
-                {"siren": "111111111", "siret": "11111111100011"},
-                {"siren": "222222222", "siret": "22222222200022"},
+                {
+                    "siren": "111111111",
+                    "siret": "11111111100011",
+                    "etatAdministratifEtablissement": "A",
+                },
+                {
+                    "siren": "222222222",
+                    "siret": "22222222200022",
+                    "etatAdministratifEtablissement": "A",
+                },
             ],
             unites_legales_by_siren={
                 "222222222": {
                     "uniteLegale": {
                         "categorieJuridiqueUniteLegale": "1000",
+                        "etatAdministratifUniteLegale": "A",
                         "denominationUniteLegale": "LIVE EI",
                     }
                 }
@@ -214,6 +233,7 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
                         "111111111": {
                             "uniteLegale": {
                                 "categorieJuridiqueUniteLegale": "1000",
+                                "etatAdministratifUniteLegale": "A",
                                 "denominationUniteLegale": "CACHE EI",
                             }
                         }
@@ -241,6 +261,121 @@ class ExportBordeauxIndependantsTest(unittest.TestCase):
             ["CACHE EI", "LIVE EI"],
             [row["nom_ou_denomination"] for row in rows],
         )
+
+    def test_export_keeps_only_active_etablissement_and_active_unite_legale(
+        self,
+    ) -> None:
+        client = FakeSireneClient(
+            etablissements=[
+                {
+                    "siren": "111111111",
+                    "siret": "11111111100011",
+                    "etatAdministratifEtablissement": "A",
+                },
+                {
+                    "siren": "222222222",
+                    "siret": "22222222200022",
+                    "etatAdministratifEtablissement": "F",
+                },
+                {
+                    "siren": "333333333",
+                    "siret": "33333333300033",
+                    "etatAdministratifEtablissement": "A",
+                },
+                {
+                    "siren": "444444444",
+                    "siret": "44444444400044",
+                    "etatAdministratifEtablissement": "A",
+                    "periodesEtablissement": [
+                        {
+                            "dateFin": "2020-01-01",
+                            "etatAdministratifEtablissement": "A",
+                        },
+                        {
+                            "dateFin": None,
+                            "etatAdministratifEtablissement": "F",
+                        },
+                    ],
+                },
+            ],
+            unites_legales_by_siren={
+                "111111111": {
+                    "uniteLegale": {
+                        "categorieJuridiqueUniteLegale": "1000",
+                        "etatAdministratifUniteLegale": "A",
+                        "denominationUniteLegale": "ACTIVE EI",
+                    }
+                },
+                "333333333": {
+                    "uniteLegale": {
+                        "categorieJuridiqueUniteLegale": "1000",
+                        "etatAdministratifUniteLegale": "C",
+                        "denominationUniteLegale": "CESSÉE EI",
+                    }
+                },
+            },
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "out.csv"
+
+            count = export_bordeaux_independants(
+                output_path=output_path,
+                cache_path=Path(temp_dir) / "cache.json",
+                client=client,
+                progress_stream=io.StringIO(),
+                enrich_delay_seconds=0,
+            )
+            rows = read_csv_rows(output_path)
+
+        self.assertEqual(1, count)
+        self.assertEqual(["111111111"], [row["siren"] for row in rows])
+        self.assertEqual(["111111111", "333333333"], client.get_siren_calls)
+
+    def test_export_excludes_current_cessed_unite_legale_period(self) -> None:
+        client = FakeSireneClient(
+            etablissements=[
+                {
+                    "siren": "111111111",
+                    "siret": "11111111100011",
+                    "etatAdministratifEtablissement": "A",
+                },
+            ],
+            unites_legales_by_siren={
+                "111111111": {
+                    "uniteLegale": {
+                        "siren": "111111111",
+                        "periodesUniteLegale": [
+                            {
+                                "dateFin": "2020-01-01",
+                                "categorieJuridiqueUniteLegale": "1000",
+                                "etatAdministratifUniteLegale": "A",
+                            },
+                            {
+                                "dateFin": None,
+                                "categorieJuridiqueUniteLegale": "1000",
+                                "etatAdministratifUniteLegale": "C",
+                            },
+                        ],
+                    }
+                },
+            },
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "out.csv"
+
+            count = export_bordeaux_independants(
+                output_path=output_path,
+                cache_path=Path(temp_dir) / "cache.json",
+                client=client,
+                progress_stream=io.StringIO(),
+                enrich_delay_seconds=0,
+            )
+            rows = read_csv_rows(output_path)
+
+        self.assertEqual(0, count)
+        self.assertEqual([], rows)
 
     def test_count_uncached_etablissements_uses_cache_without_api(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
