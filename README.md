@@ -347,6 +347,80 @@ Puis ouvrir :
 
 - `http://127.0.0.1:8000/`
 - `http://127.0.0.1:8000/naf_sections`
+- `http://127.0.0.1:8000/independants/table`
+
+## Consultation des indépendants
+
+La consultation des indépendants s'appuie sur le fichier CSV consolidé généré par l'export SIRENE :
+
+```bash
+python -m scripts.export_bordeaux_independants --output independants_bordeaux_metropole.csv
+```
+
+Lancer FastAPI :
+
+```bash
+uvicorn main:app --reload
+```
+
+Page tableau HTML :
+
+```text
+http://127.0.0.1:8000/independants/table
+```
+
+API JSON :
+
+```text
+http://127.0.0.1:8000/independants
+```
+
+Exemples d'URL filtrées :
+
+```text
+/independants/table?commune=BORDEAUX&score_min=6
+/independants/table?code_postal=33700&code_naf=8121Z
+/independants/table?q=nettoyage&employeur=oui
+/independants?commune=MERIGNAC&sort_by=score_priorisation&sort_order=desc&limit=50&offset=0
+```
+
+Filtres disponibles :
+
+- `q` : recherche texte libre sur les champs principaux.
+- `commune` : filtre exact insensible à la casse, par exemple `BORDEAUX`.
+- `code_postal` : filtre exact, par exemple `33000`.
+- `code_naf` : filtre par code NAF, accepte les formes `8121Z` et `81.21Z`.
+- `score_min` : score de priorisation minimum.
+- `employeur` : `oui` ou `non`, basé sur `caractere_employeur_unite_legale`.
+- `limit` : nombre de lignes chargées côté serveur.
+- `offset` : décalage de pagination côté serveur.
+
+Tri côté serveur :
+
+- `sort_by` : colonne de tri.
+- `sort_order` : `asc` ou `desc`.
+
+Colonnes triables :
+
+- `nom_ou_denomination`
+- `commune`
+- `code_postal`
+- `code_naf_retenu`
+- `date_creation_etablissement`
+- `age_etablissement_annees`
+- `score_priorisation`
+
+La page tableau utilise aussi DataTables pour la recherche instantanée, le tri et la pagination côté navigateur sur les lignes déjà chargées. DataTables est chargé via CDN, car le projet ne sert pas encore de fichiers JS/CSS locaux.
+
+Limites connues :
+
+- la page HTML ne charge jamais plus de `500` lignes ; utiliser les filtres serveur pour les gros volumes ;
+- l'API JSON borne `limit` à `200` lignes ;
+- les filtres serveur relisent le CSV local `independants_bordeaux_metropole.csv` ;
+- les données affichées ne sont à jour qu'après relance de l'export CSV ;
+- le statut micro-entrepreneur reste probable, pas certain ;
+- les coordonnées téléphone/email ne sont pas disponibles dans SIRENE ;
+- le filtrage par code postal peut inclure des communes hors Bordeaux Métropole si le code postal est partagé.
 
 ## Routes principales
 
@@ -354,6 +428,8 @@ Puis ouvrir :
 - `/naf_sections` : liste des sections NAF
 - `/api/companies` : API JSON des entreprises
 - `/api/naf_sections` : API JSON des codes NAF
+- `/independants/table` : page HTML des indépendants exportés depuis SIRENE
+- `/independants` : API JSON des indépendants exportés depuis SIRENE
 
 ## Paramètres utiles
 
