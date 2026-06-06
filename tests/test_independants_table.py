@@ -61,10 +61,15 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn('value="BORDEAUX"', body)
         self.assertIn("q=alpha", body)
         self.assertIn("commune=BORDEAUX", body)
-        self.assertIn("sort_by=score_priorisation", body)
-        self.assertIn("sort_order=asc", body)
-        self.assertIn('<span class="sort-indicator">↓</span>', body)
-        self.assertIn("sort_by=nom_ou_denomination", body)
+        self.assertIn('id="independants-table"', body)
+        self.assertIn("cdn.datatables.net", body)
+        self.assertIn("Recherche instantanée", body)
+        self.assertIn("filtres serveur", body)
+        self.assertIn("La page ne charge jamais plus de", body)
+        self.assertIn("500 lignes", body)
+        self.assertIn('data-column-name="nom_ou_denomination"', body)
+        self.assertIn('data-column-name="score_priorisation"', body)
+        self.assertIn('indicator.textContent = order[1] === "asc" ? "↑" : "↓"', body)
         self.assertIn("offset=0", body)
         self.assertIn("offset=50", body)
         list_independants.assert_called_once_with(
@@ -89,12 +94,12 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertEqual(400, response.status_code)
         self.assertIn("Tri non autorisé", response.text)
 
-    def test_table_second_click_switches_current_column_to_desc(self) -> None:
+    def test_table_accepts_limit_up_to_500(self) -> None:
         with patch("main.list_csv_independants") as list_independants:
             list_independants.return_value = {
                 "data": [],
                 "total": 0,
-                "limit": 50,
+                "limit": 500,
                 "offset": 0,
             }
 
@@ -102,17 +107,18 @@ class IndependantsTableTest(unittest.TestCase):
                 "/independants/table",
                 params={
                     "commune": "BORDEAUX",
-                    "sort_by": "commune",
-                    "sort_order": "asc",
+                    "limit": 500,
                 },
             )
 
         self.assertEqual(200, response.status_code)
-        body = response.text
-        self.assertIn("sort_by=commune", body)
-        self.assertIn("sort_order=desc", body)
-        self.assertIn("commune=BORDEAUX", body)
-        self.assertIn('<span class="sort-indicator">↑</span>', body)
+        list_independants.assert_called_once()
+
+    def test_table_rejects_limit_over_500(self) -> None:
+        response = self.client.get("/independants/table", params={"limit": 501})
+
+        self.assertEqual(400, response.status_code)
+        self.assertIn("limit doit être compris entre 1 et 500", response.text)
 
 
 if __name__ == "__main__":

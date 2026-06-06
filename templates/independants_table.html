@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Indépendants Bordeaux Métropole</title>
+    <!-- DataTables est chargé via CDN car le projet ne sert pas encore d'assets JS/CSS locaux. -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/v/dt/dt-2.1.8/datatables.min.css">
     <style>
         * {
             margin: 0;
@@ -142,22 +144,10 @@
             white-space: nowrap;
         }
 
-        .sort-link {
-            color: inherit;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .sort-link:hover {
-            color: #1d6fa5;
-            text-decoration: underline;
-        }
-
         .sort-indicator {
             color: #0f766e;
             font-weight: 800;
+            margin-left: 4px;
         }
 
         tbody tr:nth-child(even) {
@@ -214,6 +204,20 @@
             color: #475569;
             font-weight: 600;
         }
+
+        .dataTables-info {
+            margin: 12px 0 18px;
+            padding: 12px 14px;
+            background: #fff7ed;
+            border-left: 4px solid #f97316;
+            border-radius: 6px;
+            color: #7c2d12;
+            line-height: 1.45;
+        }
+
+        .dataTables-info strong {
+            color: #431407;
+        }
     </style>
 </head>
 
@@ -226,10 +230,20 @@
                     {{ total }} résultat{{ "s" if total != 1 else "" }}
                     {% if total %}
                     · affichage {{ start_index }}-{{ end_index }}
+                    · {{ limit }} ligne{{ "s" if limit != 1 else "" }} maximum chargée{{ "s" if limit != 1 else "" }}
                     {% endif %}
                 </p>
             </div>
             <a class="nav-link" href="/">Voir les entreprises</a>
+        </div>
+
+        <div class="dataTables-info">
+            <strong>Table interactive :</strong>
+            la recherche instantanée, le tri et la pagination DataTables s'appliquent
+            uniquement aux lignes chargées dans cette page. Pour les gros volumes,
+            utilisez les filtres serveur ci-dessous. La page ne charge jamais plus de
+            {{ max_limit }} lignes.
+            DataTables est chargé via CDN car aucun asset local n'est configuré dans ce projet.
         </div>
 
         <form class="filters" method="get" action="/independants/table">
@@ -298,66 +312,17 @@
         </form>
 
         <div class="table-wrapper">
-            <table>
+            <table id="independants-table">
                 <thead>
                     <tr>
-                        <th>
-                            <a class="sort-link" href="{{ sort_links.nom_ou_denomination.url }}">
-                                Nom
-                                {% if sort_links.nom_ou_denomination.indicator %}
-                                <span class="sort-indicator">{{ sort_links.nom_ou_denomination.indicator }}</span>
-                                {% endif %}
-                            </a>
-                        </th>
-                        <th>
-                            <a class="sort-link" href="{{ sort_links.commune.url }}">
-                                Commune
-                                {% if sort_links.commune.indicator %}
-                                <span class="sort-indicator">{{ sort_links.commune.indicator }}</span>
-                                {% endif %}
-                            </a>
-                        </th>
-                        <th>
-                            <a class="sort-link" href="{{ sort_links.code_postal.url }}">
-                                Code postal
-                                {% if sort_links.code_postal.indicator %}
-                                <span class="sort-indicator">{{ sort_links.code_postal.indicator }}</span>
-                                {% endif %}
-                            </a>
-                        </th>
-                        <th>
-                            <a class="sort-link" href="{{ sort_links.code_naf_retenu.url }}">
-                                Activité
-                                {% if sort_links.code_naf_retenu.indicator %}
-                                <span class="sort-indicator">{{ sort_links.code_naf_retenu.indicator }}</span>
-                                {% endif %}
-                            </a>
-                        </th>
-                        <th>
-                            <a class="sort-link" href="{{ sort_links.date_creation_etablissement.url }}">
-                                Date création
-                                {% if sort_links.date_creation_etablissement.indicator %}
-                                <span class="sort-indicator">{{ sort_links.date_creation_etablissement.indicator }}</span>
-                                {% endif %}
-                            </a>
-                        </th>
-                        <th>
-                            <a class="sort-link" href="{{ sort_links.age_etablissement_annees.url }}">
-                                Âge
-                                {% if sort_links.age_etablissement_annees.indicator %}
-                                <span class="sort-indicator">{{ sort_links.age_etablissement_annees.indicator }}</span>
-                                {% endif %}
-                            </a>
-                        </th>
+                        <th data-column-name="nom_ou_denomination">Nom<span class="sort-indicator"></span></th>
+                        <th data-column-name="commune">Commune<span class="sort-indicator"></span></th>
+                        <th data-column-name="code_postal">Code postal<span class="sort-indicator"></span></th>
+                        <th data-column-name="code_naf_retenu">Activité<span class="sort-indicator"></span></th>
+                        <th data-column-name="date_creation_etablissement">Date création<span class="sort-indicator"></span></th>
+                        <th data-column-name="age_etablissement_annees">Âge<span class="sort-indicator"></span></th>
                         <th>Employeur</th>
-                        <th>
-                            <a class="sort-link" href="{{ sort_links.score_priorisation.url }}">
-                                Score
-                                {% if sort_links.score_priorisation.indicator %}
-                                <span class="sort-indicator">{{ sort_links.score_priorisation.indicator }}</span>
-                                {% endif %}
-                            </a>
-                        </th>
+                        <th data-column-name="score_priorisation">Score<span class="sort-indicator"></span></th>
                         <th>Adresse</th>
                     </tr>
                 </thead>
@@ -408,6 +373,50 @@
             {% endif %}
         </nav>
     </div>
+
+    <script src="https://cdn.datatables.net/v/dt/dt-2.1.8/datatables.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const table = new DataTable("#independants-table", {
+                language: {
+                    search: "Recherche instantanée :",
+                    lengthMenu: "Afficher _MENU_ lignes",
+                    info: "Affichage _START_ à _END_ sur _TOTAL_ lignes chargées",
+                    infoEmpty: "Aucune ligne chargée",
+                    infoFiltered: "(filtré depuis _MAX_ lignes chargées)",
+                    zeroRecords: "Aucun résultat côté navigateur",
+                    paginate: {
+                        first: "Premier",
+                        previous: "Précédent",
+                        next: "Suivant",
+                        last: "Dernier"
+                    }
+                },
+                order: [],
+                columnDefs: [
+                    { targets: [6, 8], orderable: false }
+                ],
+                pageLength: 25,
+                lengthMenu: [10, 25, 50, 100],
+                autoWidth: false
+            });
+
+            table.on("order.dt", function () {
+                document.querySelectorAll(".sort-indicator").forEach(function (node) {
+                    node.textContent = "";
+                });
+                const order = table.order()[0];
+                if (!order) {
+                    return;
+                }
+                const header = table.column(order[0]).header();
+                const indicator = header.querySelector(".sort-indicator");
+                if (indicator) {
+                    indicator.textContent = order[1] === "asc" ? "↑" : "↓";
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>
