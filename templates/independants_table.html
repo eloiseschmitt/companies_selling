@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indépendants Bordeaux Métropole</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 2em;
+        }
+
+        .stats {
+            color: #666;
+            font-size: 0.95em;
+        }
+
+        .nav-link,
+        .button {
+            display: inline-block;
+            padding: 9px 14px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.95em;
+        }
+
+        .nav-link:hover,
+        .button:hover {
+            background: #2980b9;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            margin: 20px 0;
+            padding: 16px;
+            background: #f8fafc;
+            border: 1px solid #d9e2ec;
+            border-radius: 8px;
+        }
+
+        .filter-field {
+            display: grid;
+            gap: 6px;
+        }
+
+        label {
+            font-weight: 600;
+            color: #334155;
+            font-size: 0.9em;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 9px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font-size: 0.95em;
+            background: white;
+        }
+
+        .filter-actions {
+            display: flex;
+            align-items: end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .clear-link {
+            color: #1d6fa5;
+            font-weight: 600;
+            text-decoration: none;
+            padding: 9px 0;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1050px;
+        }
+
+        thead {
+            background: #ecf0f1;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: top;
+        }
+
+        th {
+            color: #2c3e50;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #fbfdff;
+        }
+
+        .name {
+            font-weight: 700;
+            color: #1f2d3d;
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+
+        .score {
+            font-weight: 700;
+            color: #0f766e;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 24px;
+            color: #64748b;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .pagination a,
+        .pagination span.disabled {
+            padding: 9px 14px;
+            border-radius: 6px;
+            text-decoration: none;
+        }
+
+        .pagination a {
+            background: #3498db;
+            color: white;
+        }
+
+        .pagination span.disabled {
+            background: #e2e8f0;
+            color: #94a3b8;
+        }
+
+        .pagination .range {
+            color: #475569;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="topbar">
+            <div>
+                <h1>Indépendants Bordeaux Métropole</h1>
+                <p class="stats">
+                    {{ total }} résultat{{ "s" if total != 1 else "" }}
+                    {% if total %}
+                    · affichage {{ start_index }}-{{ end_index }}
+                    {% endif %}
+                </p>
+            </div>
+            <a class="nav-link" href="/">Voir les entreprises</a>
+        </div>
+
+        <form class="filters" method="get" action="/independants/table">
+            <div class="filter-field">
+                <label for="q">Recherche texte</label>
+                <input id="q" name="q" type="search" value="{{ q }}" placeholder="Nom, adresse, SIREN...">
+            </div>
+
+            <div class="filter-field">
+                <label for="commune">Commune</label>
+                <input id="commune" name="commune" value="{{ commune }}" placeholder="BORDEAUX">
+            </div>
+
+            <div class="filter-field">
+                <label for="code_postal">Code postal</label>
+                <input id="code_postal" name="code_postal" value="{{ code_postal }}" placeholder="33000">
+            </div>
+
+            <div class="filter-field">
+                <label for="code_naf">Code NAF</label>
+                <input id="code_naf" name="code_naf" value="{{ code_naf }}" placeholder="8121Z">
+            </div>
+
+            <div class="filter-field">
+                <label for="score_min">Score minimum</label>
+                <input id="score_min" name="score_min" type="number" value="{{ score_min }}" placeholder="5">
+            </div>
+
+            <div class="filter-field">
+                <label for="employeur">Employeur</label>
+                <select id="employeur" name="employeur">
+                    <option value="" {{ "selected" if not employeur else "" }}>Tous</option>
+                    <option value="oui" {{ "selected" if employeur == "oui" else "" }}>Oui</option>
+                    <option value="non" {{ "selected" if employeur == "non" else "" }}>Non</option>
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label for="sort_by">Tri</label>
+                <select id="sort_by" name="sort_by">
+                    <option value="score_priorisation" {{ "selected" if sort_by == "score_priorisation" else "" }}>Score</option>
+                    <option value="nom_ou_denomination" {{ "selected" if sort_by == "nom_ou_denomination" else "" }}>Nom</option>
+                    <option value="commune" {{ "selected" if sort_by == "commune" else "" }}>Commune</option>
+                    <option value="code_postal" {{ "selected" if sort_by == "code_postal" else "" }}>Code postal</option>
+                    <option value="code_naf_retenu" {{ "selected" if sort_by == "code_naf_retenu" else "" }}>Activité</option>
+                    <option value="date_creation_etablissement" {{ "selected" if sort_by == "date_creation_etablissement" else "" }}>Date création</option>
+                    <option value="age_etablissement_annees" {{ "selected" if sort_by == "age_etablissement_annees" else "" }}>Âge</option>
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label for="sort_order">Ordre</label>
+                <select id="sort_order" name="sort_order">
+                    <option value="desc" {{ "selected" if sort_order == "desc" else "" }}>Descendant</option>
+                    <option value="asc" {{ "selected" if sort_order == "asc" else "" }}>Ascendant</option>
+                </select>
+            </div>
+
+            <input type="hidden" name="limit" value="{{ limit }}">
+            <input type="hidden" name="offset" value="0">
+
+            <div class="filter-actions">
+                <button class="button" type="submit">Filtrer</button>
+                <a class="clear-link" href="/independants/table">Réinitialiser</a>
+            </div>
+        </form>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                        <th>Commune</th>
+                        <th>Code postal</th>
+                        <th>Activité</th>
+                        <th>Date création</th>
+                        <th>Âge</th>
+                        <th>Employeur</th>
+                        <th>Score</th>
+                        <th>Adresse</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>
+                            <div class="name">{{ item.nom_ou_denomination }}</div>
+                            <div class="mono">{{ item.siren }}</div>
+                        </td>
+                        <td>{{ item.commune }}</td>
+                        <td class="mono">{{ item.code_postal }}</td>
+                        <td class="mono">{{ item.code_naf_retenu }}</td>
+                        <td>{{ item.date_creation_etablissement }}</td>
+                        <td>{{ item.age_etablissement_annees if item.age_etablissement_annees is not none else "" }}</td>
+                        <td>{{ "Oui" if item.caractere_employeur_unite_legale == "O" else "Non" }}</td>
+                        <td class="score">{{ item.score_priorisation }}</td>
+                        <td>{{ item.adresse_complete }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td class="empty" colspan="9">Aucun indépendant trouvé avec ces filtres.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <nav class="pagination" aria-label="Pagination">
+            {% if has_previous %}
+            <a href="{{ previous_url }}">Précédent</a>
+            {% else %}
+            <span class="disabled">Précédent</span>
+            {% endif %}
+
+            <span class="range">
+                {% if total %}
+                {{ start_index }}-{{ end_index }} / {{ total }}
+                {% else %}
+                0 résultat
+                {% endif %}
+            </span>
+
+            {% if has_next %}
+            <a href="{{ next_url }}">Suivant</a>
+            {% else %}
+            <span class="disabled">Suivant</span>
+            {% endif %}
+        </nav>
+    </div>
+</body>
+
+</html>

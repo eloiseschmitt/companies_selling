@@ -310,6 +310,36 @@ def build_export_query_string(
     return urlencode(params)
 
 
+def build_independants_query_string(
+    q: str | None = None,
+    commune: str | None = None,
+    code_postal: str | None = None,
+    code_naf: str | None = None,
+    score_min: str | None = None,
+    employeur: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> str:
+    params = {}
+    for key, value in (
+        ("q", q),
+        ("commune", commune),
+        ("code_postal", code_postal),
+        ("code_naf", code_naf),
+        ("score_min", score_min),
+        ("employeur", employeur),
+        ("sort_by", sort_by),
+        ("sort_order", sort_order),
+        ("limit", limit),
+        ("offset", offset),
+    ):
+        if value not in (None, ""):
+            params[key] = value
+    return urlencode(params)
+
+
 def build_companies_csv(companies: list[dict]) -> str:
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=COMPANY_EXPORT_COLUMNS)
@@ -516,6 +546,111 @@ def get_independants(
         total=page["total"],
         limit=page["limit"],
         offset=page["offset"],
+    )
+
+
+@app.get("/independants/table")
+def independants_table(
+    request: Request,
+    q: str | None = None,
+    commune: str | None = None,
+    code_postal: str | None = None,
+    code_naf: str | None = None,
+    score_min: str | None = None,
+    employeur: str | None = None,
+    sort_by: str | None = "score_priorisation",
+    sort_order: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Affiche les indépendants exportés sous forme de tableau HTML."""
+    if limit < 1 or limit > MAX_INDEPENDANTS_LIMIT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"limit doit être compris entre 1 et {MAX_INDEPENDANTS_LIMIT}.",
+        )
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset doit être positif.")
+    if sort_by and sort_by not in ALLOWED_SORT_COLUMNS:
+        raise HTTPException(status_code=400, detail=f"Tri non autorisé: {sort_by}")
+    if sort_order not in {"asc", "desc"}:
+        raise HTTPException(
+            status_code=400,
+            detail="sort_order doit valoir 'asc' ou 'desc'.",
+        )
+
+    filters = {
+        "q": q,
+        "commune": commune,
+        "code_postal": code_postal,
+        "code_naf": code_naf,
+        "score_min": score_min,
+        "employeur": employeur,
+    }
+    sort = {"column": sort_by, "direction": sort_order} if sort_by else {}
+
+    try:
+        page = list_csv_independants(
+            filters=filters,
+            sort=sort,
+            pagination={"limit": limit, "offset": offset},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    previous_offset = max(0, offset - limit)
+    next_offset = offset + limit
+    has_previous = offset > 0
+    has_next = next_offset < page["total"]
+    previous_query = build_independants_query_string(
+        q=q,
+        commune=commune,
+        code_postal=code_postal,
+        code_naf=code_naf,
+        score_min=score_min,
+        employeur=employeur,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        limit=limit,
+        offset=previous_offset,
+    )
+    next_query = build_independants_query_string(
+        q=q,
+        commune=commune,
+        code_postal=code_postal,
+        code_naf=code_naf,
+        score_min=score_min,
+        employeur=employeur,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        limit=limit,
+        offset=next_offset,
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "independants_table.html",
+        {
+            "request": request,
+            "items": page["data"],
+            "total": page["total"],
+            "limit": limit,
+            "offset": offset,
+            "q": q or "",
+            "commune": commune or "",
+            "code_postal": code_postal or "",
+            "code_naf": code_naf or "",
+            "score_min": score_min or "",
+            "employeur": employeur or "",
+            "sort_by": sort_by or "",
+            "sort_order": sort_order,
+            "has_previous": has_previous,
+            "has_next": has_next,
+            "previous_url": f"/independants/table?{previous_query}",
+            "next_url": f"/independants/table?{next_query}",
+            "start_index": 0 if page["total"] == 0 else offset + 1,
+            "end_index": min(offset + limit, page["total"]),
+        },
     )
 
 
