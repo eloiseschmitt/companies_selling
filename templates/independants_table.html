@@ -142,6 +142,24 @@
             white-space: nowrap;
         }
 
+        .sort-link {
+            color: inherit;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .sort-link:hover {
+            color: #1d6fa5;
+            text-decoration: underline;
+        }
+
+        .sort-indicator {
+            color: #0f766e;
+            font-weight: 800;
+        }
+
         tbody tr:nth-child(even) {
             background: #fbfdff;
         }
@@ -283,14 +301,63 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Nom</th>
-                        <th>Commune</th>
-                        <th>Code postal</th>
-                        <th>Activité</th>
-                        <th>Date création</th>
-                        <th>Âge</th>
+                        <th>
+                            <a class="sort-link" href="{{ sort_links.nom_ou_denomination.url }}">
+                                Nom
+                                {% if sort_links.nom_ou_denomination.indicator %}
+                                <span class="sort-indicator">{{ sort_links.nom_ou_denomination.indicator }}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a class="sort-link" href="{{ sort_links.commune.url }}">
+                                Commune
+                                {% if sort_links.commune.indicator %}
+                                <span class="sort-indicator">{{ sort_links.commune.indicator }}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a class="sort-link" href="{{ sort_links.code_postal.url }}">
+                                Code postal
+                                {% if sort_links.code_postal.indicator %}
+                                <span class="sort-indicator">{{ sort_links.code_postal.indicator }}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a class="sort-link" href="{{ sort_links.code_naf_retenu.url }}">
+                                Activité
+                                {% if sort_links.code_naf_retenu.indicator %}
+                                <span class="sort-indicator">{{ sort_links.code_naf_retenu.indicator }}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a class="sort-link" href="{{ sort_links.date_creation_etablissement.url }}">
+                                Date création
+                                {% if sort_links.date_creation_etablissement.indicator %}
+                                <span class="sort-indicator">{{ sort_links.date_creation_etablissement.indicator }}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a class="sort-link" href="{{ sort_links.age_etablissement_annees.url }}">
+                                Âge
+                                {% if sort_links.age_etablissement_annees.indicator %}
+                                <span class="sort-indicator">{{ sort_links.age_etablissement_annees.indicator }}</span>
+                                {% endif %}
+                            </a>
+                        </th>
                         <th>Employeur</th>
-                        <th>Score</th>
+                        <th>
+                            <a class="sort-link" href="{{ sort_links.score_priorisation.url }}">
+                                Score
+                                {% if sort_links.score_priorisation.indicator %}
+                                <span class="sort-indicator">{{ sort_links.score_priorisation.indicator }}</span>
+                                {% endif %}
+                            </a>
+                        </th>
                         <th>Adresse</th>
                     </tr>
                 </thead>

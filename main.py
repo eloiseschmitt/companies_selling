@@ -24,6 +24,15 @@ import admin  # noqa: E402,F401
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 MAX_INDEPENDANTS_LIMIT = 200
+INDEPENDANTS_TABLE_SORT_COLUMNS = (
+    "nom_ou_denomination",
+    "commune",
+    "code_postal",
+    "code_naf_retenu",
+    "date_creation_etablissement",
+    "age_etablissement_annees",
+    "score_priorisation",
+)
 COMPANY_EXPORT_COLUMNS = [
     "siren",
     "siret",
@@ -340,6 +349,46 @@ def build_independants_query_string(
     return urlencode(params)
 
 
+def build_independants_sort_links(
+    q: str | None,
+    commune: str | None,
+    code_postal: str | None,
+    code_naf: str | None,
+    score_min: str | None,
+    employeur: str | None,
+    current_sort_by: str | None,
+    current_sort_order: str,
+    limit: int,
+) -> dict[str, dict[str, str]]:
+    links = {}
+    for column in INDEPENDANTS_TABLE_SORT_COLUMNS:
+        next_order = (
+            "desc"
+            if current_sort_by == column and current_sort_order == "asc"
+            else "asc"
+        )
+        indicator = ""
+        if current_sort_by == column:
+            indicator = "↑" if current_sort_order == "asc" else "↓"
+        query = build_independants_query_string(
+            q=q,
+            commune=commune,
+            code_postal=code_postal,
+            code_naf=code_naf,
+            score_min=score_min,
+            employeur=employeur,
+            sort_by=column,
+            sort_order=next_order,
+            limit=limit,
+            offset=0,
+        )
+        links[column] = {
+            "url": f"/independants/table?{query}",
+            "indicator": indicator,
+        }
+    return links
+
+
 def build_companies_csv(companies: list[dict]) -> str:
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=COMPANY_EXPORT_COLUMNS)
@@ -571,7 +620,7 @@ def independants_table(
         )
     if offset < 0:
         raise HTTPException(status_code=400, detail="offset doit être positif.")
-    if sort_by and sort_by not in ALLOWED_SORT_COLUMNS:
+    if sort_by and sort_by not in INDEPENDANTS_TABLE_SORT_COLUMNS:
         raise HTTPException(status_code=400, detail=f"Tri non autorisé: {sort_by}")
     if sort_order not in {"asc", "desc"}:
         raise HTTPException(
@@ -644,6 +693,17 @@ def independants_table(
             "employeur": employeur or "",
             "sort_by": sort_by or "",
             "sort_order": sort_order,
+            "sort_links": build_independants_sort_links(
+                q=q,
+                commune=commune,
+                code_postal=code_postal,
+                code_naf=code_naf,
+                score_min=score_min,
+                employeur=employeur,
+                current_sort_by=sort_by,
+                current_sort_order=sort_order,
+                limit=limit,
+            ),
             "has_previous": has_previous,
             "has_next": has_next,
             "previous_url": f"/independants/table?{previous_query}",

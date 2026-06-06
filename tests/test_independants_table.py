@@ -61,6 +61,10 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn('value="BORDEAUX"', body)
         self.assertIn("q=alpha", body)
         self.assertIn("commune=BORDEAUX", body)
+        self.assertIn("sort_by=score_priorisation", body)
+        self.assertIn("sort_order=asc", body)
+        self.assertIn('<span class="sort-indicator">↓</span>', body)
+        self.assertIn("sort_by=nom_ou_denomination", body)
         self.assertIn("offset=0", body)
         self.assertIn("offset=50", body)
         list_independants.assert_called_once_with(
@@ -84,6 +88,31 @@ class IndependantsTableTest(unittest.TestCase):
 
         self.assertEqual(400, response.status_code)
         self.assertIn("Tri non autorisé", response.text)
+
+    def test_table_second_click_switches_current_column_to_desc(self) -> None:
+        with patch("main.list_csv_independants") as list_independants:
+            list_independants.return_value = {
+                "data": [],
+                "total": 0,
+                "limit": 50,
+                "offset": 0,
+            }
+
+            response = self.client.get(
+                "/independants/table",
+                params={
+                    "commune": "BORDEAUX",
+                    "sort_by": "commune",
+                    "sort_order": "asc",
+                },
+            )
+
+        self.assertEqual(200, response.status_code)
+        body = response.text
+        self.assertIn("sort_by=commune", body)
+        self.assertIn("sort_order=desc", body)
+        self.assertIn("commune=BORDEAUX", body)
+        self.assertIn('<span class="sort-indicator">↑</span>', body)
 
 
 if __name__ == "__main__":
