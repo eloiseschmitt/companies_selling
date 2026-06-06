@@ -79,7 +79,7 @@ def extract_unite_legale(payload: dict[str, Any]) -> dict[str, Any]:
     """Extrait l'objet UniteLegale depuis la réponse `/siren/{siren}`."""
     unite_legale = payload.get("uniteLegale")
     if isinstance(unite_legale, dict):
-        return unite_legale
+        return _with_current_unite_legale_period(unite_legale)
     return payload
 
 
@@ -308,6 +308,25 @@ def _is_probable_micro_entrepreneur(
         return False
     tranche_reference = tranche_unite_legale or tranche_etablissement
     return tranche_reference in NO_OR_SMALL_HEADCOUNT_CODES
+
+
+def _with_current_unite_legale_period(unite_legale: dict[str, Any]) -> dict[str, Any]:
+    periods = unite_legale.get("periodesUniteLegale")
+    if not isinstance(periods, list):
+        return unite_legale
+
+    current_period = next(
+        (
+            period
+            for period in periods
+            if isinstance(period, dict) and period.get("dateFin") is None
+        ),
+        None,
+    )
+    if current_period is None:
+        return unite_legale
+
+    return {**unite_legale, **current_period}
 
 
 def _address_value(etablissement: dict[str, Any], field_name: str) -> str:

@@ -9,6 +9,7 @@ from services.insee_sirene_mapping import (
     build_consolidated_etablissement_rows,
     compute_age_years,
     compute_prioritization_score,
+    extract_unite_legale,
     map_etablissement_to_csv_row,
 )
 
@@ -184,6 +185,36 @@ class InseeSireneMappingTest(unittest.TestCase):
 
         self.assertEqual(["123456789"], client.calls)
         self.assertEqual("ALPHA", row["nom_ou_denomination"])
+
+    def test_extract_unite_legale_merges_current_period_fields(self) -> None:
+        unite_legale = extract_unite_legale(
+            {
+                "uniteLegale": {
+                    "siren": "123456789",
+                    "prenomUsuelUniteLegale": "ALICE",
+                    "periodesUniteLegale": [
+                        {
+                            "dateDebut": "2020-01-01",
+                            "dateFin": "2022-12-31",
+                            "categorieJuridiqueUniteLegale": "5710",
+                        },
+                        {
+                            "dateDebut": "2023-01-01",
+                            "dateFin": None,
+                            "categorieJuridiqueUniteLegale": "1000",
+                            "etatAdministratifUniteLegale": "A",
+                            "activitePrincipaleUniteLegale": "81.21Z",
+                        },
+                    ],
+                }
+            }
+        )
+
+        self.assertEqual("123456789", unite_legale["siren"])
+        self.assertEqual("ALICE", unite_legale["prenomUsuelUniteLegale"])
+        self.assertEqual("1000", unite_legale["categorieJuridiqueUniteLegale"])
+        self.assertEqual("A", unite_legale["etatAdministratifUniteLegale"])
+        self.assertEqual("81.21Z", unite_legale["activitePrincipaleUniteLegale"])
 
     def test_build_consolidated_row_extracts_siren_from_siret_when_missing(
         self,
