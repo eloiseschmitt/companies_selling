@@ -11,7 +11,7 @@ class IndependantsEndpointTest(unittest.TestCase):
         self.client = TestClient(app)
 
     def test_get_independants_returns_items_and_pagination(self) -> None:
-        with patch("main.list_csv_independants") as list_independants:
+        with patch("main.list_db_independants") as list_independants:
             list_independants.return_value = {
                 "data": [
                     {
@@ -120,7 +120,7 @@ class IndependantsEndpointTest(unittest.TestCase):
         self.assertIn("limit doit être compris", response.json()["detail"])
 
     def test_get_independants_rejects_service_validation_error(self) -> None:
-        with patch("main.list_csv_independants") as list_independants:
+        with patch("main.list_db_independants") as list_independants:
             list_independants.side_effect = ValueError(
                 "Le filtre score_min doit être un entier."
             )

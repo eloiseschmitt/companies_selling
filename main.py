@@ -14,8 +14,8 @@ from pydantic import BaseModel
 
 from app import app
 from constants import MAPPING_HEADCOUNT
-from services.independants_csv import ALLOWED_SORT_COLUMNS
-from services.independants_csv import list_independants as list_csv_independants
+from services.independants_repository import ALLOWED_SORT_COLUMNS
+from services.independants_repository import list_independants as list_db_independants
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -582,7 +582,7 @@ def get_independants(
     limit: int = 50,
     offset: int = 0,
 ) -> IndependantsResponse:
-    """Retourne les indépendants exportés depuis le CSV consolidé SIRENE."""
+    """Retourne les indépendants depuis la table SQLite consolidée."""
     if limit < 1 or limit > MAX_INDEPENDANTS_LIMIT:
         raise HTTPException(
             status_code=400,
@@ -609,7 +609,7 @@ def get_independants(
     sort = {"column": sort_by, "direction": sort_order} if sort_by else {}
 
     try:
-        page = list_csv_independants(
+        page = list_db_independants(
             filters=filters,
             sort=sort,
             pagination={"limit": limit, "offset": offset},
@@ -639,7 +639,7 @@ def independants_table(
     limit: int = 50,
     offset: int = 0,
 ):
-    """Affiche les indépendants exportés sous forme de tableau HTML."""
+    """Affiche les indépendants depuis la table SQLite sous forme de tableau HTML."""
     if limit < 1 or limit > MAX_INDEPENDANTS_TABLE_LIMIT:
         raise HTTPException(
             status_code=400,
@@ -668,7 +668,7 @@ def independants_table(
     sort = {"column": sort_by, "direction": sort_order} if sort_by else {}
 
     try:
-        page = list_csv_independants(
+        page = list_db_independants(
             filters=filters,
             sort=sort,
             pagination={"limit": limit, "offset": offset},

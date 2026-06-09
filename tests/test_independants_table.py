@@ -11,7 +11,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.client = TestClient(app)
 
     def test_table_renders_filters_rows_and_pagination_links(self) -> None:
-        with patch("main.list_csv_independants") as list_independants:
+        with patch("main.list_db_independants") as list_independants:
             list_independants.return_value = {
                 "data": [
                     {
@@ -105,7 +105,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Tri non autorisé", response.text)
 
     def test_table_accepts_limit_up_to_500(self) -> None:
-        with patch("main.list_csv_independants") as list_independants:
+        with patch("main.list_db_independants") as list_independants:
             list_independants.return_value = {
                 "data": [],
                 "total": 0,
