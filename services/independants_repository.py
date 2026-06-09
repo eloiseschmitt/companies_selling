@@ -303,6 +303,15 @@ def _build_where_clause(filters: Mapping[str, Any]) -> tuple[str, list[Any]]:
         clauses.append("score_priorisation >= ?")
         params.append(parsed_score_min)
 
+    annee_creation = _clean(filters.get("annee_creation"))
+    if annee_creation:
+        if len(annee_creation) != 4 or not annee_creation.isdigit():
+            raise ValueError(
+                "Le filtre annee_creation doit être une année au format YYYY."
+            )
+        clauses.append("substr(date_creation_etablissement, 1, 4) = ?")
+        params.append(annee_creation)
+
     employeur = filters.get("employeur")
     if employeur is not None and employeur != "":
         if _parse_filter_bool(employeur):

@@ -467,6 +467,11 @@
             </div>
 
             <div class="filter-field">
+                <label for="annee_creation">Année de création</label>
+                <input id="annee_creation" name="annee_creation" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" value="{{ annee_creation }}" placeholder="2020">
+            </div>
+
+            <div class="filter-field">
                 <label for="employeur">Employeur</label>
                 <select id="employeur" name="employeur">
                     <option value="" {{ "selected" if not employeur else "" }}>Tous</option>

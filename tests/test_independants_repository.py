@@ -147,6 +147,17 @@ class IndependantsRepositoryTest(unittest.TestCase):
 
         self.assertEqual(["222222222", "333333333"], [r["siren"] for r in page["data"]])
 
+    def test_filters_by_creation_year(self) -> None:
+        page = list_independants(
+            filters={"annee_creation": "2010"},
+            sort={"column": "siren", "direction": "asc"},
+            pagination={"limit": 10, "offset": 0},
+            database_path=self.database_path,
+        )
+
+        self.assertEqual(1, page["total"])
+        self.assertEqual("111111111", page["data"][0]["siren"])
+
     def test_filters_deleted_rows_when_requested(self) -> None:
         conn = sqlite3.connect(self.database_path)
         try:
@@ -202,6 +213,14 @@ class IndependantsRepositoryTest(unittest.TestCase):
                 filters={},
                 sort={},
                 pagination={"limit": -1},
+                database_path=self.database_path,
+            )
+
+        with self.assertRaisesRegex(ValueError, "annee_creation"):
+            list_independants(
+                filters={"annee_creation": "20A0"},
+                sort={},
+                pagination={},
                 database_path=self.database_path,
             )
 
