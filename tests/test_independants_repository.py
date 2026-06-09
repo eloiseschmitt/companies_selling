@@ -9,6 +9,7 @@ from services.independants_repository import (
     list_independants,
     mark_independant_deleted,
     normalize_french_phone_number,
+    update_independant_commentaires,
     update_independant_contacte,
     update_independant_telephone,
 )
@@ -113,6 +114,7 @@ class IndependantsRepositoryTest(unittest.TestCase):
         self.assertEqual(10, page["data"][0]["score_priorisation"])
         self.assertFalse(page["data"][0]["contacte"])
         self.assertEqual("", page["data"][0]["telephone"])
+        self.assertEqual("", page["data"][0]["commentaires"])
         self.assertIs(page["data"][0]["est_entrepreneur_individuel"], True)
         self.assertIs(page["data"][0]["est_micro_entrepreneur_probable"], False)
 
@@ -225,6 +227,32 @@ class IndependantsRepositoryTest(unittest.TestCase):
         )
 
         self.assertIs(deleted, False)
+
+    def test_updates_commentaires(self) -> None:
+        commentaires = update_independant_commentaires(
+            "11111111100011",
+            "À rappeler lundi",
+            database_path=self.database_path,
+        )
+
+        page = list_independants(
+            filters={"q": "11111111100011"},
+            sort={},
+            pagination={"limit": 1, "offset": 0},
+            database_path=self.database_path,
+        )
+
+        self.assertEqual("À rappeler lundi", commentaires)
+        self.assertEqual("À rappeler lundi", page["data"][0]["commentaires"])
+
+    def test_update_commentaires_returns_none_for_unknown_siret(self) -> None:
+        commentaires = update_independant_commentaires(
+            "99999999900099",
+            "Note",
+            database_path=self.database_path,
+        )
+
+        self.assertIsNone(commentaires)
 
     def test_updates_contacte_status(self) -> None:
         contacte = update_independant_contacte(

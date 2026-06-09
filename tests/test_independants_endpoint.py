@@ -30,6 +30,7 @@ class IndependantsEndpointTest(unittest.TestCase):
                         "score_priorisation": 10,
                         "contacte": False,
                         "telephone": "",
+                        "commentaires": "",
                         "adresse_complete": "1 RUE A, 33000 BORDEAUX",
                     }
                 ],
@@ -74,6 +75,7 @@ class IndependantsEndpointTest(unittest.TestCase):
                         "score_priorisation": 10,
                         "contacte": False,
                         "telephone": "",
+                        "commentaires": "",
                         "adresse_complete": "1 RUE A, 33000 BORDEAUX",
                     }
                 ],
@@ -133,6 +135,38 @@ class IndependantsEndpointTest(unittest.TestCase):
             response = self.client.patch(
                 "/independants/99999999900099/telephone",
                 json={"telephone": "06 12 34 56 78"},
+            )
+
+        self.assertEqual(404, response.status_code)
+        self.assertEqual("Indépendant introuvable.", response.json()["detail"])
+
+    def test_updates_independant_commentaires(self) -> None:
+        with patch("main.update_independant_commentaires") as update_commentaires:
+            update_commentaires.return_value = "À rappeler lundi"
+
+            response = self.client.patch(
+                "/independants/11111111100011/commentaires",
+                json={"commentaires": "À rappeler lundi"},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {"siret": "11111111100011", "commentaires": "À rappeler lundi"},
+            response.json(),
+        )
+        update_commentaires.assert_called_once_with(
+            "11111111100011", "À rappeler lundi"
+        )
+
+    def test_update_independant_commentaires_returns_404_for_unknown_siret(
+        self,
+    ) -> None:
+        with patch("main.update_independant_commentaires") as update_commentaires:
+            update_commentaires.return_value = None
+
+            response = self.client.patch(
+                "/independants/99999999900099/commentaires",
+                json={"commentaires": "Note"},
             )
 
         self.assertEqual(404, response.status_code)

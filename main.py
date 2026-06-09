@@ -17,6 +17,7 @@ from constants import MAPPING_HEADCOUNT
 from services.independants_repository import (
     ALLOWED_SORT_COLUMNS,
     mark_independant_deleted,
+    update_independant_commentaires,
     update_independant_contacte,
     update_independant_telephone,
 )
@@ -78,6 +79,7 @@ class IndependantItem(BaseModel):
     score_priorisation: int
     contacte: bool = False
     telephone: str = ""
+    commentaires: str = ""
     adresse_complete: str
 
 
@@ -104,6 +106,15 @@ class IndependantContacteUpdate(BaseModel):
 class IndependantContacteResponse(BaseModel):
     siret: str
     contacte: bool
+
+
+class IndependantCommentairesUpdate(BaseModel):
+    commentaires: str = ""
+
+
+class IndependantCommentairesResponse(BaseModel):
+    siret: str
+    commentaires: str
 
 
 class IndependantDeleteResponse(BaseModel):
@@ -688,6 +699,21 @@ def update_independant_contacte_endpoint(
     if contacte is None:
         raise HTTPException(status_code=404, detail="Indépendant introuvable.")
     return IndependantContacteResponse(siret=siret, contacte=contacte)
+
+
+@app.patch(
+    "/independants/{siret}/commentaires",
+    response_model=IndependantCommentairesResponse,
+)
+def update_independant_commentaires_endpoint(
+    siret: str,
+    payload: IndependantCommentairesUpdate,
+) -> IndependantCommentairesResponse:
+    """Met à jour les commentaires d'un indépendant depuis la table HTML."""
+    commentaires = update_independant_commentaires(siret, payload.commentaires)
+    if commentaires is None:
+        raise HTTPException(status_code=404, detail="Indépendant introuvable.")
+    return IndependantCommentairesResponse(siret=siret, commentaires=commentaires)
 
 
 @app.delete(

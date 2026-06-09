@@ -30,6 +30,7 @@ class IndependantsTableTest(unittest.TestCase):
                         "score_priorisation": 10,
                         "contacte": False,
                         "telephone": "",
+                        "commentaires": "",
                         "adresse_complete": "1 RUE A, 33000 BORDEAUX",
                     }
                 ],
@@ -67,6 +68,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Profil intéressant", body)
         self.assertIn("Téléphone", body)
         self.assertIn("Contacté", body)
+        self.assertIn("Commentaires", body)
         self.assertIn("Action", body)
         self.assertIn("profile-badge profile-yes", body)
         self.assertIn("interesting-row", body)
@@ -79,6 +81,8 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Non", body)
         self.assertIn("contacte-cell", body)
         self.assertIn('data-original-contacte="false"', body)
+        self.assertIn("commentaires-cell", body)
+        self.assertIn('data-original-commentaires=""', body)
         self.assertIn("https://www.google.com/maps/search/?api=1", body)
         self.assertIn('value="alpha"', body)
         self.assertIn('value="BORDEAUX"', body)
@@ -93,15 +97,18 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn('data-column-name="nom_ou_denomination"', body)
         self.assertIn('data-column-name="score_priorisation"', body)
         self.assertIn('indicator.textContent = order[1] === "asc" ? "↑" : "↓"', body)
-        self.assertIn("targets: [6, 7, 9, 10, 11, 12]", body)
+        self.assertIn("targets: [6, 7, 9, 10, 11, 12, 13]", body)
         self.assertIn("saveTelephone", body)
         self.assertIn("editTelephoneCell", body)
         self.assertIn("editContacteCell", body)
         self.assertIn("saveContacte", body)
+        self.assertIn("editCommentairesCell", body)
+        self.assertIn("saveCommentaires", body)
         self.assertIn('tableElement.addEventListener("dblclick"', body)
         self.assertIn("window.DataTable", body)
         self.assertIn("/independants/${cell.dataset.siret}/telephone", body)
         self.assertIn("/independants/${cell.dataset.siret}/contacte", body)
+        self.assertIn("/independants/${cell.dataset.siret}/commentaires", body)
         self.assertIn('method: "PATCH"', body)
         self.assertIn('method: "DELETE"', body)
         self.assertIn("Suppression impossible", body)

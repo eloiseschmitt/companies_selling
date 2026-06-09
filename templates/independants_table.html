@@ -306,11 +306,22 @@
             min-width: 90px;
         }
 
+        .commentaires-cell {
+            cursor: pointer;
+            max-width: 240px;
+            min-width: 180px;
+            white-space: pre-wrap;
+        }
+
         .telephone-cell:hover {
             background: #eff6ff;
         }
 
         .contacte-cell:hover {
+            background: #eff6ff;
+        }
+
+        .commentaires-cell:hover {
             background: #eff6ff;
         }
 
@@ -320,6 +331,11 @@
         }
 
         .contacte-cell.saving {
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .commentaires-cell.saving {
             color: #64748b;
             font-style: italic;
         }
@@ -334,6 +350,11 @@
             color: #991b1b;
         }
 
+        .commentaires-cell.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
         .telephone-input {
             width: 140px;
             padding: 6px 8px;
@@ -342,6 +363,13 @@
         .contacte-select {
             width: 90px;
             padding: 6px 8px;
+        }
+
+        .commentaires-textarea {
+            min-height: 70px;
+            width: 220px;
+            padding: 6px 8px;
+            resize: vertical;
         }
 
         .delete-button {
@@ -488,6 +516,7 @@
                         <th data-column-name="score_priorisation">Score<span class="sort-indicator"></span></th>
                         <th>Téléphone</th>
                         <th>Contacté</th>
+                        <th>Commentaires</th>
                         <th>Adresse</th>
                         <th>Action</th>
                     </tr>
@@ -523,6 +552,9 @@
                         <td class="contacte-cell" data-siret="{{ item.siret }}" data-original-contacte="{{ 'true' if item.contacte else 'false' }}" title="Double-cliquer pour modifier">
                             {{ "Oui" if item.contacte else "Non" }}
                         </td>
+                        <td class="commentaires-cell" data-siret="{{ item.siret }}" data-original-commentaires="{{ item.commentaires }}" title="Double-cliquer pour modifier">
+                            {{ item.commentaires }}
+                        </td>
                         <td>
                             {{ item.adresse_complete }}
                             {% if item.google_maps_url %}
@@ -538,7 +570,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td class="empty" colspan="13">Aucun indépendant trouvé avec ces filtres.</td>
+                        <td class="empty" colspan="14">Aucun indépendant trouvé avec ces filtres.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -583,6 +615,13 @@
             function renderContacteCell(cell, contacte) {
                 cell.textContent = contacte ? "Oui" : "Non";
                 cell.dataset.originalContacte = contacte ? "true" : "false";
+                cell.classList.remove("saving", "error");
+                cell.title = "Double-cliquer pour modifier";
+            }
+
+            function renderCommentairesCell(cell, commentaires) {
+                cell.textContent = commentaires;
+                cell.dataset.originalCommentaires = commentaires;
                 cell.classList.remove("saving", "error");
                 cell.title = "Double-cliquer pour modifier";
             }
@@ -650,6 +689,39 @@
                     cell.innerHTML = "";
                     cell.appendChild(select);
                     select.focus();
+                    alert(error.message);
+                }
+            }
+
+            async function saveCommentaires(cell, textarea) {
+                const newValue = textarea.value;
+                const originalValue = cell.dataset.originalCommentaires || "";
+                if (newValue === originalValue) {
+                    renderCommentairesCell(cell, originalValue);
+                    return;
+                }
+
+                cell.classList.add("saving");
+                cell.classList.remove("error");
+                try {
+                    const response = await fetch(`/independants/${cell.dataset.siret}/commentaires`, {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ commentaires: newValue })
+                    });
+                    const payload = await response.json();
+                    if (!response.ok) {
+                        throw new Error(payload.detail || "Mise à jour impossible.");
+                    }
+                    renderCommentairesCell(cell, payload.commentaires || "");
+                } catch (error) {
+                    cell.classList.remove("saving");
+                    cell.classList.add("error");
+                    cell.innerHTML = "";
+                    cell.appendChild(textarea);
+                    textarea.focus();
                     alert(error.message);
                 }
             }
@@ -729,6 +801,39 @@
                 });
             }
 
+            function editCommentairesCell(cell) {
+                if (cell.querySelector("textarea")) {
+                    return;
+                }
+
+                const originalValue = cell.dataset.originalCommentaires || "";
+                const textarea = document.createElement("textarea");
+                textarea.className = "commentaires-textarea";
+                textarea.value = originalValue;
+                textarea.placeholder = "Ajouter un commentaire...";
+                textarea.setAttribute("aria-label", "Commentaires");
+                let cancelled = false;
+
+                cell.innerHTML = "";
+                cell.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+
+                textarea.addEventListener("blur", function () {
+                    if (cancelled) {
+                        return;
+                    }
+                    saveCommentaires(cell, textarea);
+                });
+                textarea.addEventListener("keydown", function (event) {
+                    if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelled = true;
+                        renderCommentairesCell(cell, originalValue);
+                    }
+                });
+            }
+
             if (tableElement) {
                 tableElement.addEventListener("dblclick", function (event) {
                     const telephoneCell = event.target.closest(".telephone-cell");
@@ -740,6 +845,12 @@
                     const contacteCell = event.target.closest(".contacte-cell");
                     if (contacteCell && tableElement.contains(contacteCell)) {
                         editContacteCell(contacteCell);
+                        return;
+                    }
+
+                    const commentairesCell = event.target.closest(".commentaires-cell");
+                    if (commentairesCell && tableElement.contains(commentairesCell)) {
+                        editCommentairesCell(commentairesCell);
                     }
                 });
 
@@ -792,7 +903,7 @@
                     },
                     order: [],
                     columnDefs: [
-                        { targets: [6, 7, 9, 10, 11, 12], orderable: false }
+                        { targets: [6, 7, 9, 10, 11, 12, 13], orderable: false }
                     ],
                     pageLength: 25,
                     lengthMenu: [10, 25, 50, 100],

@@ -27,6 +27,7 @@ RETURN_FIELDS = (
     "score_priorisation",
     "contacte",
     "telephone",
+    "commentaires",
     "adresse_complete",
 )
 
@@ -158,6 +159,35 @@ def update_independant_contacte(
     if cursor.rowcount == 0:
         return None
     return contacte
+
+
+def update_independant_commentaires(
+    siret: str,
+    commentaires: str,
+    database_path: Path = DEFAULT_DATABASE_PATH,
+) -> str | None:
+    """Met à jour les commentaires d'un indépendant."""
+    if not database_path.exists():
+        return None
+
+    with sqlite3.connect(database_path) as conn:
+        conn.row_factory = sqlite3.Row
+        if not _table_exists(conn):
+            return None
+        _ensure_table_columns(conn)
+        cursor = conn.execute(
+            f"""
+            UPDATE {TABLE_NAME}
+            SET commentaires = ?
+            WHERE siret = ?
+            """,
+            (commentaires, siret),
+        )
+        conn.commit()
+
+    if cursor.rowcount == 0:
+        return None
+    return commentaires
 
 
 def mark_independant_deleted(
