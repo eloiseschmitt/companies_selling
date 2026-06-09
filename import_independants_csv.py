@@ -50,6 +50,7 @@ TEXT_COLUMNS = [
 BOOLEAN_COLUMNS = [
     "est_entrepreneur_individuel",
     "est_micro_entrepreneur_probable",
+    "contacte",
     "supprime",
 ]
 INTEGER_COLUMNS = [
@@ -94,9 +95,10 @@ INDEPENDANT_COLUMNS = [
     "age_etablissement_annees",
     "score_priorisation",
     "raison_score",
+    "contacte",
     "supprime",
 ]
-OPTIONAL_CSV_COLUMNS = frozenset({"supprime", "telephone"})
+OPTIONAL_CSV_COLUMNS = frozenset({"contacte", "supprime", "telephone"})
 
 
 def create_independants_table(conn: sqlite3.Connection) -> None:
@@ -141,6 +143,7 @@ def create_independants_table(conn: sqlite3.Connection) -> None:
             age_etablissement_annees INTEGER,
             score_priorisation INTEGER NOT NULL DEFAULT 0,
             raison_score TEXT,
+            contacte INTEGER NOT NULL DEFAULT 0,
             supprime INTEGER NOT NULL DEFAULT 0
         )
         """
@@ -183,6 +186,10 @@ def ensure_independants_columns(conn: sqlite3.Connection) -> None:
     if "supprime" not in columns:
         conn.execute(
             f"ALTER TABLE {TABLE_NAME} ADD COLUMN supprime INTEGER NOT NULL DEFAULT 0"
+        )
+    if "contacte" not in columns:
+        conn.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN contacte INTEGER NOT NULL DEFAULT 0"
         )
 
 

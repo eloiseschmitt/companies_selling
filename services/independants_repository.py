@@ -332,6 +332,10 @@ def _ensure_table_columns(conn: sqlite3.Connection) -> None:
         conn.execute(
             f"ALTER TABLE {TABLE_NAME} ADD COLUMN supprime INTEGER NOT NULL DEFAULT 0"
         )
+    if "contacte" not in columns:
+        conn.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN contacte INTEGER NOT NULL DEFAULT 0"
+        )
     conn.commit()
 
 
