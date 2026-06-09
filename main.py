@@ -71,6 +71,7 @@ class IndependantItem(BaseModel):
     est_micro_entrepreneur_probable: bool
     caractere_employeur_unite_legale: str
     score_priorisation: int
+    telephone: str = ""
     adresse_complete: str
 
 

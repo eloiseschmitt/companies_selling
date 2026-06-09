@@ -28,6 +28,7 @@ class IndependantsTableTest(unittest.TestCase):
                         "est_micro_entrepreneur_probable": False,
                         "caractere_employeur_unite_legale": "O",
                         "score_priorisation": 10,
+                        "telephone": "",
                         "adresse_complete": "1 RUE A, 33000 BORDEAUX",
                     }
                 ],
@@ -63,9 +64,11 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Commune : BORDEAUX", body)
         self.assertIn("Ménage / nettoyage courant", body)
         self.assertIn("Profil intéressant", body)
+        self.assertIn("Téléphone", body)
         self.assertIn("profile-badge profile-yes", body)
         self.assertIn("interesting-row", body)
         self.assertIn("Google Maps", body)
+        self.assertIn("<td></td>", body)
         self.assertIn("https://www.google.com/maps/search/?api=1", body)
         self.assertIn('value="alpha"', body)
         self.assertIn('value="BORDEAUX"', body)
@@ -80,6 +83,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn('data-column-name="nom_ou_denomination"', body)
         self.assertIn('data-column-name="score_priorisation"', body)
         self.assertIn('indicator.textContent = order[1] === "asc" ? "↑" : "↓"', body)
+        self.assertIn("targets: [6, 7, 9, 10]", body)
         self.assertIn("offset=0", body)
         self.assertIn("offset=50", body)
         list_independants.assert_called_once_with(

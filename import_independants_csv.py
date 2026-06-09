@@ -43,6 +43,7 @@ TEXT_COLUMNS = [
     "code_postal",
     "commune",
     "code_commune",
+    "telephone",
     "adresse_complete",
     "raison_score",
 ]
@@ -87,11 +88,13 @@ INDEPENDANT_COLUMNS = [
     "code_postal",
     "commune",
     "code_commune",
+    "telephone",
     "adresse_complete",
     "age_etablissement_annees",
     "score_priorisation",
     "raison_score",
 ]
+OPTIONAL_CSV_COLUMNS = frozenset({"telephone"})
 
 
 def create_independants_table(conn: sqlite3.Connection) -> None:
@@ -131,6 +134,7 @@ def create_independants_table(conn: sqlite3.Connection) -> None:
             code_postal TEXT,
             commune TEXT,
             code_commune TEXT,
+            telephone TEXT NOT NULL DEFAULT '',
             adresse_complete TEXT,
             age_etablissement_annees INTEGER,
             score_priorisation INTEGER NOT NULL DEFAULT 0,
@@ -138,6 +142,7 @@ def create_independants_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    ensure_independants_columns(conn)
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_independants_siren ON independants (siren)"
     )
@@ -163,6 +168,15 @@ def create_independants_table(conn: sqlite3.Connection) -> None:
         """
     )
     conn.commit()
+
+
+def ensure_independants_columns(conn: sqlite3.Connection) -> None:
+    """Ajoute les colonnes manquantes sur une base déjà existante."""
+    columns = {row[1] for row in conn.execute(f"PRAGMA table_info({TABLE_NAME})")}
+    if "telephone" not in columns:
+        conn.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN telephone TEXT NOT NULL DEFAULT ''"
+        )
 
 
 def import_independants_csv(
@@ -203,7 +217,9 @@ def import_independants_csv(
 
 
 def validate_csv_columns(fieldnames: Sequence[str] | None) -> None:
-    missing_columns = set(INDEPENDANT_COLUMNS) - set(fieldnames or [])
+    missing_columns = (
+        set(INDEPENDANT_COLUMNS) - OPTIONAL_CSV_COLUMNS - set(fieldnames or [])
+    )
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"Colonnes CSV manquantes: {missing}")

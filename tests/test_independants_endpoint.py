@@ -28,6 +28,7 @@ class IndependantsEndpointTest(unittest.TestCase):
                         "est_micro_entrepreneur_probable": False,
                         "caractere_employeur_unite_legale": "O",
                         "score_priorisation": 10,
+                        "telephone": "",
                         "adresse_complete": "1 RUE A, 33000 BORDEAUX",
                     }
                 ],
@@ -70,6 +71,7 @@ class IndependantsEndpointTest(unittest.TestCase):
                         "est_micro_entrepreneur_probable": False,
                         "caractere_employeur_unite_legale": "O",
                         "score_priorisation": 10,
+                        "telephone": "",
                         "adresse_complete": "1 RUE A, 33000 BORDEAUX",
                     }
                 ],

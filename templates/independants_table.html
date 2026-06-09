@@ -419,6 +419,7 @@
                         <th>Employeur</th>
                         <th>Profil intéressant</th>
                         <th data-column-name="score_priorisation">Score<span class="sort-indicator"></span></th>
+                        <th>Téléphone</th>
                         <th>Adresse</th>
                     </tr>
                 </thead>
@@ -447,6 +448,7 @@
                             {% endif %}
                         </td>
                         <td class="score">{{ item.score_priorisation }}</td>
+                        <td>{{ item.telephone }}</td>
                         <td>
                             {{ item.adresse_complete }}
                             {% if item.google_maps_url %}
@@ -457,7 +459,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td class="empty" colspan="10">Aucun indépendant trouvé avec ces filtres.</td>
+                        <td class="empty" colspan="11">Aucun indépendant trouvé avec ces filtres.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -507,7 +509,7 @@
                 },
                 order: [],
                 columnDefs: [
-                    { targets: [6, 7, 9], orderable: false }
+                    { targets: [6, 7, 9, 10], orderable: false }
                 ],
                 pageLength: 25,
                 lengthMenu: [10, 25, 50, 100],

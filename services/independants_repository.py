@@ -24,6 +24,7 @@ RETURN_FIELDS = (
     "est_micro_entrepreneur_probable",
     "caractere_employeur_unite_legale",
     "score_priorisation",
+    "telephone",
     "adresse_complete",
 )
 
@@ -71,6 +72,7 @@ def list_independants(
         conn.row_factory = sqlite3.Row
         if not _table_exists(conn):
             return _empty_page(limit, offset)
+        _ensure_telephone_column(conn)
 
         total = conn.execute(
             f"SELECT COUNT(*) FROM {TABLE_NAME}{where_clause}",
@@ -216,6 +218,16 @@ def _table_exists(conn: sqlite3.Connection) -> bool:
         (TABLE_NAME,),
     ).fetchone()
     return row is not None
+
+
+def _ensure_telephone_column(conn: sqlite3.Connection) -> None:
+    columns = {row[1] for row in conn.execute(f"PRAGMA table_info({TABLE_NAME})")}
+    if "telephone" in columns:
+        return
+    conn.execute(
+        f"ALTER TABLE {TABLE_NAME} ADD COLUMN telephone TEXT NOT NULL DEFAULT ''"
+    )
+    conn.commit()
 
 
 def _empty_page(limit: int, offset: int) -> IndependantsPage:
