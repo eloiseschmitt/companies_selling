@@ -75,7 +75,7 @@ def list_independants(
         conn.row_factory = sqlite3.Row
         if not _table_exists(conn):
             return _empty_page(limit, offset)
-        _ensure_telephone_column(conn)
+        _ensure_table_columns(conn)
 
         total = conn.execute(
             f"SELECT COUNT(*) FROM {TABLE_NAME}{where_clause}",
@@ -114,7 +114,7 @@ def update_independant_telephone(
         conn.row_factory = sqlite3.Row
         if not _table_exists(conn):
             return None
-        _ensure_telephone_column(conn)
+        _ensure_table_columns(conn)
         cursor = conn.execute(
             f"""
             UPDATE {TABLE_NAME}
@@ -128,6 +128,32 @@ def update_independant_telephone(
     if cursor.rowcount == 0:
         return None
     return normalized_telephone
+
+
+def mark_independant_deleted(
+    siret: str,
+    database_path: Path = DEFAULT_DATABASE_PATH,
+) -> bool:
+    """Marque un indépendant comme supprimé sans effacer la ligne."""
+    if not database_path.exists():
+        return False
+
+    with sqlite3.connect(database_path) as conn:
+        conn.row_factory = sqlite3.Row
+        if not _table_exists(conn):
+            return False
+        _ensure_table_columns(conn)
+        cursor = conn.execute(
+            f"""
+            UPDATE {TABLE_NAME}
+            SET supprime = 1
+            WHERE siret = ?
+            """,
+            (siret,),
+        )
+        conn.commit()
+
+    return cursor.rowcount > 0
 
 
 def normalize_french_phone_number(telephone: str) -> str:
@@ -207,6 +233,13 @@ def _build_where_clause(filters: Mapping[str, Any]) -> tuple[str, list[Any]]:
                 )
                 """
             )
+
+    supprime = filters.get("supprime")
+    if supprime is not None and supprime != "":
+        if _parse_filter_bool(supprime):
+            clauses.append("supprime = 1")
+        else:
+            clauses.append("(supprime IS NULL OR supprime = 0)")
 
     text = _clean(filters.get("texte") or filters.get("q"))
     if text:
@@ -289,13 +322,16 @@ def _table_exists(conn: sqlite3.Connection) -> bool:
     return row is not None
 
 
-def _ensure_telephone_column(conn: sqlite3.Connection) -> None:
+def _ensure_table_columns(conn: sqlite3.Connection) -> None:
     columns = {row[1] for row in conn.execute(f"PRAGMA table_info({TABLE_NAME})")}
-    if "telephone" in columns:
-        return
-    conn.execute(
-        f"ALTER TABLE {TABLE_NAME} ADD COLUMN telephone TEXT NOT NULL DEFAULT ''"
-    )
+    if "telephone" not in columns:
+        conn.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN telephone TEXT NOT NULL DEFAULT ''"
+        )
+    if "supprime" not in columns:
+        conn.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN supprime INTEGER NOT NULL DEFAULT 0"
+        )
     conn.commit()
 
 

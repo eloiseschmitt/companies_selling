@@ -136,6 +136,28 @@ class IndependantsEndpointTest(unittest.TestCase):
         self.assertEqual(404, response.status_code)
         self.assertEqual("Indépendant introuvable.", response.json()["detail"])
 
+    def test_deletes_independant(self) -> None:
+        with patch("main.mark_independant_deleted") as mark_deleted:
+            mark_deleted.return_value = True
+
+            response = self.client.delete("/independants/11111111100011")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {"siret": "11111111100011", "supprime": True},
+            response.json(),
+        )
+        mark_deleted.assert_called_once_with("11111111100011")
+
+    def test_delete_independant_returns_404_for_unknown_siret(self) -> None:
+        with patch("main.mark_independant_deleted") as mark_deleted:
+            mark_deleted.return_value = False
+
+            response = self.client.delete("/independants/99999999900099")
+
+        self.assertEqual(404, response.status_code)
+        self.assertEqual("Indépendant introuvable.", response.json()["detail"])
+
     def test_get_independants_rejects_invalid_sort_column(self) -> None:
         response = self.client.get(
             "/independants",

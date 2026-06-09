@@ -7,6 +7,7 @@ from import_independants_csv import create_independants_table
 from services.independants_repository import (
     RETURN_FIELDS,
     list_independants,
+    mark_independant_deleted,
     normalize_french_phone_number,
     update_independant_telephone,
 )
@@ -141,6 +142,27 @@ class IndependantsRepositoryTest(unittest.TestCase):
 
         self.assertEqual(["222222222", "333333333"], [r["siren"] for r in page["data"]])
 
+    def test_filters_deleted_rows_when_requested(self) -> None:
+        conn = sqlite3.connect(self.database_path)
+        try:
+            conn.execute(
+                "UPDATE independants SET supprime = 1 WHERE siret = ?",
+                ("22222222200022",),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        page = list_independants(
+            filters={"supprime": False},
+            sort={"column": "siren", "direction": "asc"},
+            pagination={"limit": 10, "offset": 0},
+            database_path=self.database_path,
+        )
+
+        self.assertEqual(2, page["total"])
+        self.assertEqual(["111111111", "333333333"], [r["siren"] for r in page["data"]])
+
     def test_sort_and_pagination(self) -> None:
         page = list_independants(
             filters={},
@@ -177,6 +199,30 @@ class IndependantsRepositoryTest(unittest.TestCase):
                 pagination={"limit": -1},
                 database_path=self.database_path,
             )
+
+    def test_marks_independant_deleted(self) -> None:
+        deleted = mark_independant_deleted(
+            "11111111100011",
+            database_path=self.database_path,
+        )
+
+        page = list_independants(
+            filters={"supprime": False},
+            sort={"column": "siren", "direction": "asc"},
+            pagination={"limit": 10, "offset": 0},
+            database_path=self.database_path,
+        )
+
+        self.assertIs(deleted, True)
+        self.assertEqual(["222222222", "333333333"], [r["siren"] for r in page["data"]])
+
+    def test_mark_deleted_returns_false_for_unknown_siret(self) -> None:
+        deleted = mark_independant_deleted(
+            "99999999900099",
+            database_path=self.database_path,
+        )
+
+        self.assertIs(deleted, False)
 
     def test_updates_telephone_with_normalized_french_number(self) -> None:
         telephone = update_independant_telephone(

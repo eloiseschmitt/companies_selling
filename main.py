@@ -16,6 +16,7 @@ from app import app
 from constants import MAPPING_HEADCOUNT
 from services.independants_repository import (
     ALLOWED_SORT_COLUMNS,
+    mark_independant_deleted,
     update_independant_telephone,
 )
 from services.independants_repository import list_independants as list_db_independants
@@ -92,6 +93,11 @@ class IndependantTelephoneUpdate(BaseModel):
 class IndependantTelephoneResponse(BaseModel):
     siret: str
     telephone: str
+
+
+class IndependantDeleteResponse(BaseModel):
+    siret: str
+    supprime: bool
 
 
 def get_db_connection():
@@ -658,6 +664,18 @@ def update_independant_telephone_endpoint(
     return IndependantTelephoneResponse(siret=siret, telephone=telephone)
 
 
+@app.delete(
+    "/independants/{siret}",
+    response_model=IndependantDeleteResponse,
+)
+def delete_independant_endpoint(siret: str) -> IndependantDeleteResponse:
+    """Masque un indépendant de la table en le marquant comme supprimé."""
+    deleted = mark_independant_deleted(siret)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Indépendant introuvable.")
+    return IndependantDeleteResponse(siret=siret, supprime=True)
+
+
 @app.get("/independants/table")
 def independants_table(
     request: Request,
@@ -697,6 +715,7 @@ def independants_table(
         "code_naf": code_naf,
         "score_min": score_min,
         "employeur": employeur,
+        "supprime": False,
     }
     sort = {"column": sort_by, "direction": sort_order} if sort_by else {}
 

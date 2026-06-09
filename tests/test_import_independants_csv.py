@@ -58,6 +58,7 @@ class ImportIndependantsCsvTest(unittest.TestCase):
         self.assertEqual(16, row["age_etablissement_annees"])
         self.assertEqual(8, row["score_priorisation"])
         self.assertEqual("", row["telephone"])
+        self.assertEqual(0, row["supprime"])
 
     def test_import_replaces_existing_rows_by_default(self) -> None:
         create_independants_table(self.conn)
