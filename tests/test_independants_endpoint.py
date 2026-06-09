@@ -94,6 +94,48 @@ class IndependantsEndpointTest(unittest.TestCase):
             pagination={"limit": 25, "offset": 5},
         )
 
+    def test_updates_independant_telephone(self) -> None:
+        with patch("main.update_independant_telephone") as update_telephone:
+            update_telephone.return_value = "06 12 34 56 78"
+
+            response = self.client.patch(
+                "/independants/11111111100011/telephone",
+                json={"telephone": "+33 6 12 34 56 78"},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {"siret": "11111111100011", "telephone": "06 12 34 56 78"},
+            response.json(),
+        )
+        update_telephone.assert_called_once_with("11111111100011", "+33 6 12 34 56 78")
+
+    def test_update_independant_telephone_rejects_invalid_number(self) -> None:
+        with patch("main.update_independant_telephone") as update_telephone:
+            update_telephone.side_effect = ValueError(
+                "Le numéro de téléphone doit être un numéro français valide."
+            )
+
+            response = self.client.patch(
+                "/independants/11111111100011/telephone",
+                json={"telephone": "12345"},
+            )
+
+        self.assertEqual(400, response.status_code)
+        self.assertIn("numéro français valide", response.json()["detail"])
+
+    def test_update_independant_telephone_returns_404_for_unknown_siret(self) -> None:
+        with patch("main.update_independant_telephone") as update_telephone:
+            update_telephone.return_value = None
+
+            response = self.client.patch(
+                "/independants/99999999900099/telephone",
+                json={"telephone": "06 12 34 56 78"},
+            )
+
+        self.assertEqual(404, response.status_code)
+        self.assertEqual("Indépendant introuvable.", response.json()["detail"])
+
     def test_get_independants_rejects_invalid_sort_column(self) -> None:
         response = self.client.get(
             "/independants",

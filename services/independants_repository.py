@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Mapping
 from pathlib import Path
@@ -40,6 +41,8 @@ TEXT_SEARCH_FIELDS = (
     "code_naf_retenu",
     "adresse_complete",
 )
+PHONE_ALLOWED_CHARS_RE = re.compile(r"^[0-9+().\s-]*$")
+PHONE_SEPARATORS_RE = re.compile(r"[\s().-]+")
 
 
 class IndependantsPage(TypedDict):
@@ -95,6 +98,72 @@ def list_independants(
         "limit": limit,
         "offset": offset,
     }
+
+
+def update_independant_telephone(
+    siret: str,
+    telephone: str,
+    database_path: Path = DEFAULT_DATABASE_PATH,
+) -> str | None:
+    """Met à jour le téléphone d'un indépendant et retourne la valeur stockée."""
+    normalized_telephone = normalize_french_phone_number(telephone)
+    if not database_path.exists():
+        return None
+
+    with sqlite3.connect(database_path) as conn:
+        conn.row_factory = sqlite3.Row
+        if not _table_exists(conn):
+            return None
+        _ensure_telephone_column(conn)
+        cursor = conn.execute(
+            f"""
+            UPDATE {TABLE_NAME}
+            SET telephone = ?
+            WHERE siret = ?
+            """,
+            (normalized_telephone, siret),
+        )
+        conn.commit()
+
+    if cursor.rowcount == 0:
+        return None
+    return normalized_telephone
+
+
+def normalize_french_phone_number(telephone: str) -> str:
+    """Valide et normalise un numéro français en `0X XX XX XX XX`."""
+    cleaned = telephone.strip()
+    if not cleaned:
+        return ""
+    if not PHONE_ALLOWED_CHARS_RE.fullmatch(cleaned):
+        raise ValueError("Le numéro de téléphone doit être un numéro français valide.")
+
+    compact = PHONE_SEPARATORS_RE.sub("", cleaned)
+    if "+" in compact[1:]:
+        raise ValueError("Le numéro de téléphone doit être un numéro français valide.")
+
+    if compact.startswith("0033"):
+        compact = "+33" + compact[4:]
+
+    if compact.startswith("+33"):
+        subscriber_number = compact[3:]
+        if len(subscriber_number) != 9 or subscriber_number[0] == "0":
+            raise ValueError(
+                "Le numéro de téléphone doit être un numéro français valide."
+            )
+        national_number = f"0{subscriber_number}"
+    else:
+        national_number = compact
+
+    if not (
+        len(national_number) == 10
+        and national_number.isdigit()
+        and national_number.startswith("0")
+        and national_number[1] in "123456789"
+    ):
+        raise ValueError("Le numéro de téléphone doit être un numéro français valide.")
+
+    return " ".join(national_number[index : index + 2] for index in range(0, 10, 2))
 
 
 def _build_where_clause(filters: Mapping[str, Any]) -> tuple[str, list[Any]]:

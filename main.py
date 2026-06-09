@@ -14,7 +14,10 @@ from pydantic import BaseModel
 
 from app import app
 from constants import MAPPING_HEADCOUNT
-from services.independants_repository import ALLOWED_SORT_COLUMNS
+from services.independants_repository import (
+    ALLOWED_SORT_COLUMNS,
+    update_independant_telephone,
+)
 from services.independants_repository import list_independants as list_db_independants
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -80,6 +83,15 @@ class IndependantsResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class IndependantTelephoneUpdate(BaseModel):
+    telephone: str = ""
+
+
+class IndependantTelephoneResponse(BaseModel):
+    siret: str
+    telephone: str
 
 
 def get_db_connection():
@@ -624,6 +636,26 @@ def get_independants(
         limit=page["limit"],
         offset=page["offset"],
     )
+
+
+@app.patch(
+    "/independants/{siret}/telephone",
+    response_model=IndependantTelephoneResponse,
+)
+def update_independant_telephone_endpoint(
+    siret: str,
+    payload: IndependantTelephoneUpdate,
+) -> IndependantTelephoneResponse:
+    """Met à jour le téléphone d'un indépendant depuis la table HTML."""
+    try:
+        telephone = update_independant_telephone(siret, payload.telephone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if telephone is None:
+        raise HTTPException(status_code=404, detail="Indépendant introuvable.")
+
+    return IndependantTelephoneResponse(siret=siret, telephone=telephone)
 
 
 @app.get("/independants/table")

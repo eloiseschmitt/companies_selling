@@ -4,7 +4,12 @@ import unittest
 from pathlib import Path
 
 from import_independants_csv import create_independants_table
-from services.independants_repository import RETURN_FIELDS, list_independants
+from services.independants_repository import (
+    RETURN_FIELDS,
+    list_independants,
+    normalize_french_phone_number,
+    update_independant_telephone,
+)
 
 
 class IndependantsRepositoryTest(unittest.TestCase):
@@ -172,6 +177,44 @@ class IndependantsRepositoryTest(unittest.TestCase):
                 pagination={"limit": -1},
                 database_path=self.database_path,
             )
+
+    def test_updates_telephone_with_normalized_french_number(self) -> None:
+        telephone = update_independant_telephone(
+            "11111111100011",
+            "+33 6 12 34 56 78",
+            database_path=self.database_path,
+        )
+
+        page = list_independants(
+            filters={"q": "11111111100011"},
+            sort={},
+            pagination={"limit": 1, "offset": 0},
+            database_path=self.database_path,
+        )
+
+        self.assertEqual("06 12 34 56 78", telephone)
+        self.assertEqual("06 12 34 56 78", page["data"][0]["telephone"])
+
+    def test_update_telephone_returns_none_for_unknown_siret(self) -> None:
+        telephone = update_independant_telephone(
+            "99999999900099",
+            "06 12 34 56 78",
+            database_path=self.database_path,
+        )
+
+        self.assertIsNone(telephone)
+
+    def test_normalizes_and_rejects_french_phone_numbers(self) -> None:
+        self.assertEqual("01 23 45 67 89", normalize_french_phone_number("0123456789"))
+        self.assertEqual(
+            "06 12 34 56 78", normalize_french_phone_number("0033 6 12 34 56 78")
+        )
+        self.assertEqual("", normalize_french_phone_number(""))
+
+        with self.assertRaisesRegex(ValueError, "numéro français valide"):
+            normalize_french_phone_number("12345")
+        with self.assertRaisesRegex(ValueError, "numéro français valide"):
+            normalize_french_phone_number("+44 20 12 34 56 78")
 
     def test_missing_database_returns_empty_page(self) -> None:
         page = list_independants(

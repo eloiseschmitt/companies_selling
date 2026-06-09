@@ -295,6 +295,30 @@
         .maps-link:hover {
             text-decoration: underline;
         }
+
+        .telephone-cell {
+            cursor: pointer;
+            min-width: 130px;
+        }
+
+        .telephone-cell:hover {
+            background: #eff6ff;
+        }
+
+        .telephone-cell.saving {
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .telephone-cell.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .telephone-input {
+            width: 140px;
+            padding: 6px 8px;
+        }
     </style>
 </head>
 
@@ -448,7 +472,9 @@
                             {% endif %}
                         </td>
                         <td class="score">{{ item.score_priorisation }}</td>
-                        <td>{{ item.telephone }}</td>
+                        <td class="telephone-cell" data-siret="{{ item.siret }}" data-original-telephone="{{ item.telephone }}" title="Double-cliquer pour modifier">
+                            {{ item.telephone }}
+                        </td>
                         <td>
                             {{ item.adresse_complete }}
                             {% if item.google_maps_url %}
@@ -492,44 +518,138 @@
     <script src="https://cdn.datatables.net/v/dt/dt-2.1.8/datatables.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const table = new DataTable("#independants-table", {
-                language: {
-                    search: "Recherche instantanée :",
-                    lengthMenu: "Afficher _MENU_ lignes",
-                    info: "Affichage _START_ à _END_ sur _TOTAL_ lignes chargées",
-                    infoEmpty: "Aucune ligne chargée",
-                    infoFiltered: "(filtré depuis _MAX_ lignes chargées)",
-                    zeroRecords: "Aucun résultat côté navigateur",
-                    paginate: {
-                        first: "Premier",
-                        previous: "Précédent",
-                        next: "Suivant",
-                        last: "Dernier"
-                    }
-                },
-                order: [],
-                columnDefs: [
-                    { targets: [6, 7, 9, 10], orderable: false }
-                ],
-                pageLength: 25,
-                lengthMenu: [10, 25, 50, 100],
-                autoWidth: false
-            });
+            const tableElement = document.querySelector("#independants-table");
 
-            table.on("order.dt", function () {
-                document.querySelectorAll(".sort-indicator").forEach(function (node) {
-                    node.textContent = "";
-                });
-                const order = table.order()[0];
-                if (!order) {
+            function renderTelephoneCell(cell, telephone) {
+                cell.textContent = telephone;
+                cell.dataset.originalTelephone = telephone;
+                cell.classList.remove("saving", "error");
+                cell.title = "Double-cliquer pour modifier";
+            }
+
+            async function saveTelephone(cell, input) {
+                const newValue = input.value.trim();
+                const originalValue = cell.dataset.originalTelephone || "";
+                if (newValue === originalValue) {
+                    renderTelephoneCell(cell, originalValue);
                     return;
                 }
-                const header = table.column(order[0]).header();
-                const indicator = header.querySelector(".sort-indicator");
-                if (indicator) {
-                    indicator.textContent = order[1] === "asc" ? "↑" : "↓";
+
+                cell.classList.add("saving");
+                cell.classList.remove("error");
+                try {
+                    const response = await fetch(`/independants/${cell.dataset.siret}/telephone`, {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ telephone: newValue })
+                    });
+                    const payload = await response.json();
+                    if (!response.ok) {
+                        throw new Error(payload.detail || "Numéro de téléphone invalide.");
+                    }
+                    renderTelephoneCell(cell, payload.telephone || "");
+                } catch (error) {
+                    cell.classList.remove("saving");
+                    cell.classList.add("error");
+                    cell.innerHTML = "";
+                    cell.appendChild(input);
+                    input.focus();
+                    input.select();
+                    alert(error.message);
                 }
-            });
+            }
+
+            function editTelephoneCell(cell) {
+                if (cell.querySelector("input")) {
+                    return;
+                }
+
+                const originalValue = cell.dataset.originalTelephone || "";
+                const input = document.createElement("input");
+                input.className = "telephone-input";
+                input.type = "tel";
+                input.value = originalValue;
+                input.placeholder = "06 12 34 56 78";
+                input.autocomplete = "tel";
+                input.setAttribute("aria-label", "Téléphone");
+                let cancelled = false;
+
+                cell.innerHTML = "";
+                cell.appendChild(input);
+                input.focus();
+                input.select();
+
+                input.addEventListener("blur", function () {
+                    if (cancelled) {
+                        return;
+                    }
+                    saveTelephone(cell, input);
+                });
+                input.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        input.blur();
+                    }
+                    if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelled = true;
+                        renderTelephoneCell(cell, originalValue);
+                    }
+                });
+            }
+
+            if (tableElement) {
+                tableElement.addEventListener("dblclick", function (event) {
+                    const cell = event.target.closest(".telephone-cell");
+                    if (!cell || !tableElement.contains(cell)) {
+                        return;
+                    }
+                    editTelephoneCell(cell);
+                });
+            }
+
+            if (window.DataTable && tableElement) {
+                const table = new DataTable("#independants-table", {
+                    language: {
+                        search: "Recherche instantanée :",
+                        lengthMenu: "Afficher _MENU_ lignes",
+                        info: "Affichage _START_ à _END_ sur _TOTAL_ lignes chargées",
+                        infoEmpty: "Aucune ligne chargée",
+                        infoFiltered: "(filtré depuis _MAX_ lignes chargées)",
+                        zeroRecords: "Aucun résultat côté navigateur",
+                        paginate: {
+                            first: "Premier",
+                            previous: "Précédent",
+                            next: "Suivant",
+                            last: "Dernier"
+                        }
+                    },
+                    order: [],
+                    columnDefs: [
+                        { targets: [6, 7, 9, 10], orderable: false }
+                    ],
+                    pageLength: 25,
+                    lengthMenu: [10, 25, 50, 100],
+                    autoWidth: false
+                });
+
+                table.on("order.dt", function () {
+                    document.querySelectorAll(".sort-indicator").forEach(function (node) {
+                        node.textContent = "";
+                    });
+                    const order = table.order()[0];
+                    if (!order) {
+                        return;
+                    }
+                    const header = table.column(order[0]).header();
+                    const indicator = header.querySelector(".sort-indicator");
+                    if (indicator) {
+                        indicator.textContent = order[1] === "asc" ? "↑" : "↓";
+                    }
+                });
+            }
         });
     </script>
 </body>
