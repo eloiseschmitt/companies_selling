@@ -138,6 +138,34 @@ class IndependantsEndpointTest(unittest.TestCase):
         self.assertEqual(404, response.status_code)
         self.assertEqual("Indépendant introuvable.", response.json()["detail"])
 
+    def test_updates_independant_contacte(self) -> None:
+        with patch("main.update_independant_contacte") as update_contacte:
+            update_contacte.return_value = True
+
+            response = self.client.patch(
+                "/independants/11111111100011/contacte",
+                json={"contacte": True},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {"siret": "11111111100011", "contacte": True},
+            response.json(),
+        )
+        update_contacte.assert_called_once_with("11111111100011", True)
+
+    def test_update_independant_contacte_returns_404_for_unknown_siret(self) -> None:
+        with patch("main.update_independant_contacte") as update_contacte:
+            update_contacte.return_value = None
+
+            response = self.client.patch(
+                "/independants/99999999900099/contacte",
+                json={"contacte": True},
+            )
+
+        self.assertEqual(404, response.status_code)
+        self.assertEqual("Indépendant introuvable.", response.json()["detail"])
+
     def test_deletes_independant(self) -> None:
         with patch("main.mark_independant_deleted") as mark_deleted:
             mark_deleted.return_value = True

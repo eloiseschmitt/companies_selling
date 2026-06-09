@@ -9,6 +9,7 @@ from services.independants_repository import (
     list_independants,
     mark_independant_deleted,
     normalize_french_phone_number,
+    update_independant_contacte,
     update_independant_telephone,
 )
 
@@ -224,6 +225,32 @@ class IndependantsRepositoryTest(unittest.TestCase):
         )
 
         self.assertIs(deleted, False)
+
+    def test_updates_contacte_status(self) -> None:
+        contacte = update_independant_contacte(
+            "11111111100011",
+            True,
+            database_path=self.database_path,
+        )
+
+        page = list_independants(
+            filters={"q": "11111111100011"},
+            sort={},
+            pagination={"limit": 1, "offset": 0},
+            database_path=self.database_path,
+        )
+
+        self.assertIs(contacte, True)
+        self.assertIs(page["data"][0]["contacte"], True)
+
+    def test_update_contacte_returns_none_for_unknown_siret(self) -> None:
+        contacte = update_independant_contacte(
+            "99999999900099",
+            True,
+            database_path=self.database_path,
+        )
+
+        self.assertIsNone(contacte)
 
     def test_updates_telephone_with_normalized_french_number(self) -> None:
         telephone = update_independant_telephone(

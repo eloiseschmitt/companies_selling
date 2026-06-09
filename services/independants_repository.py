@@ -131,6 +131,35 @@ def update_independant_telephone(
     return normalized_telephone
 
 
+def update_independant_contacte(
+    siret: str,
+    contacte: bool,
+    database_path: Path = DEFAULT_DATABASE_PATH,
+) -> bool | None:
+    """Met à jour le statut de contact d'un indépendant."""
+    if not database_path.exists():
+        return None
+
+    with sqlite3.connect(database_path) as conn:
+        conn.row_factory = sqlite3.Row
+        if not _table_exists(conn):
+            return None
+        _ensure_table_columns(conn)
+        cursor = conn.execute(
+            f"""
+            UPDATE {TABLE_NAME}
+            SET contacte = ?
+            WHERE siret = ?
+            """,
+            (1 if contacte else 0, siret),
+        )
+        conn.commit()
+
+    if cursor.rowcount == 0:
+        return None
+    return contacte
+
+
 def mark_independant_deleted(
     siret: str,
     database_path: Path = DEFAULT_DATABASE_PATH,
@@ -337,6 +366,10 @@ def _ensure_table_columns(conn: sqlite3.Connection) -> None:
     if "contacte" not in columns:
         conn.execute(
             f"ALTER TABLE {TABLE_NAME} ADD COLUMN contacte INTEGER NOT NULL DEFAULT 0"
+        )
+    if "commentaires" not in columns:
+        conn.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN commentaires TEXT NOT NULL DEFAULT ''"
         )
     conn.commit()
 

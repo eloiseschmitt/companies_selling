@@ -17,6 +17,7 @@ from constants import MAPPING_HEADCOUNT
 from services.independants_repository import (
     ALLOWED_SORT_COLUMNS,
     mark_independant_deleted,
+    update_independant_contacte,
     update_independant_telephone,
 )
 from services.independants_repository import list_independants as list_db_independants
@@ -94,6 +95,15 @@ class IndependantTelephoneUpdate(BaseModel):
 class IndependantTelephoneResponse(BaseModel):
     siret: str
     telephone: str
+
+
+class IndependantContacteUpdate(BaseModel):
+    contacte: bool
+
+
+class IndependantContacteResponse(BaseModel):
+    siret: str
+    contacte: bool
 
 
 class IndependantDeleteResponse(BaseModel):
@@ -663,6 +673,21 @@ def update_independant_telephone_endpoint(
         raise HTTPException(status_code=404, detail="Indépendant introuvable.")
 
     return IndependantTelephoneResponse(siret=siret, telephone=telephone)
+
+
+@app.patch(
+    "/independants/{siret}/contacte",
+    response_model=IndependantContacteResponse,
+)
+def update_independant_contacte_endpoint(
+    siret: str,
+    payload: IndependantContacteUpdate,
+) -> IndependantContacteResponse:
+    """Met à jour le statut contacté d'un indépendant depuis la table HTML."""
+    contacte = update_independant_contacte(siret, payload.contacte)
+    if contacte is None:
+        raise HTTPException(status_code=404, detail="Indépendant introuvable.")
+    return IndependantContacteResponse(siret=siret, contacte=contacte)
 
 
 @app.delete(

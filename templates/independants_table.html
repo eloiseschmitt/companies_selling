@@ -301,11 +301,25 @@
             min-width: 130px;
         }
 
+        .contacte-cell {
+            cursor: pointer;
+            min-width: 90px;
+        }
+
         .telephone-cell:hover {
             background: #eff6ff;
         }
 
+        .contacte-cell:hover {
+            background: #eff6ff;
+        }
+
         .telephone-cell.saving {
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .contacte-cell.saving {
             color: #64748b;
             font-style: italic;
         }
@@ -315,8 +329,18 @@
             color: #991b1b;
         }
 
+        .contacte-cell.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
         .telephone-input {
             width: 140px;
+            padding: 6px 8px;
+        }
+
+        .contacte-select {
+            width: 90px;
             padding: 6px 8px;
         }
 
@@ -496,7 +520,9 @@
                         <td class="telephone-cell" data-siret="{{ item.siret }}" data-original-telephone="{{ item.telephone }}" title="Double-cliquer pour modifier">
                             {{ item.telephone }}
                         </td>
-                        <td>{{ "Oui" if item.contacte else "Non" }}</td>
+                        <td class="contacte-cell" data-siret="{{ item.siret }}" data-original-contacte="{{ 'true' if item.contacte else 'false' }}" title="Double-cliquer pour modifier">
+                            {{ "Oui" if item.contacte else "Non" }}
+                        </td>
                         <td>
                             {{ item.adresse_complete }}
                             {% if item.google_maps_url %}
@@ -554,6 +580,13 @@
                 cell.title = "Double-cliquer pour modifier";
             }
 
+            function renderContacteCell(cell, contacte) {
+                cell.textContent = contacte ? "Oui" : "Non";
+                cell.dataset.originalContacte = contacte ? "true" : "false";
+                cell.classList.remove("saving", "error");
+                cell.title = "Double-cliquer pour modifier";
+            }
+
             async function saveTelephone(cell, input) {
                 const newValue = input.value.trim();
                 const originalValue = cell.dataset.originalTelephone || "";
@@ -584,6 +617,39 @@
                     cell.appendChild(input);
                     input.focus();
                     input.select();
+                    alert(error.message);
+                }
+            }
+
+            async function saveContacte(cell, select) {
+                const newValue = select.value === "true";
+                const originalValue = cell.dataset.originalContacte === "true";
+                if (newValue === originalValue) {
+                    renderContacteCell(cell, originalValue);
+                    return;
+                }
+
+                cell.classList.add("saving");
+                cell.classList.remove("error");
+                try {
+                    const response = await fetch(`/independants/${cell.dataset.siret}/contacte`, {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ contacte: newValue })
+                    });
+                    const payload = await response.json();
+                    if (!response.ok) {
+                        throw new Error(payload.detail || "Mise à jour impossible.");
+                    }
+                    renderContacteCell(cell, Boolean(payload.contacte));
+                } catch (error) {
+                    cell.classList.remove("saving");
+                    cell.classList.add("error");
+                    cell.innerHTML = "";
+                    cell.appendChild(select);
+                    select.focus();
                     alert(error.message);
                 }
             }
@@ -627,13 +693,54 @@
                 });
             }
 
-            if (tableElement) {
-                tableElement.addEventListener("dblclick", function (event) {
-                    const cell = event.target.closest(".telephone-cell");
-                    if (!cell || !tableElement.contains(cell)) {
+            function editContacteCell(cell) {
+                if (cell.querySelector("select")) {
+                    return;
+                }
+
+                const originalValue = cell.dataset.originalContacte === "true";
+                const select = document.createElement("select");
+                select.className = "contacte-select";
+                select.setAttribute("aria-label", "Contacté");
+                select.innerHTML = '<option value="false">Non</option><option value="true">Oui</option>';
+                select.value = originalValue ? "true" : "false";
+                let cancelled = false;
+
+                cell.innerHTML = "";
+                cell.appendChild(select);
+                select.focus();
+
+                select.addEventListener("blur", function () {
+                    if (cancelled) {
                         return;
                     }
-                    editTelephoneCell(cell);
+                    saveContacte(cell, select);
+                });
+                select.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        select.blur();
+                    }
+                    if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelled = true;
+                        renderContacteCell(cell, originalValue);
+                    }
+                });
+            }
+
+            if (tableElement) {
+                tableElement.addEventListener("dblclick", function (event) {
+                    const telephoneCell = event.target.closest(".telephone-cell");
+                    if (telephoneCell && tableElement.contains(telephoneCell)) {
+                        editTelephoneCell(telephoneCell);
+                        return;
+                    }
+
+                    const contacteCell = event.target.closest(".contacte-cell");
+                    if (contacteCell && tableElement.contains(contacteCell)) {
+                        editContacteCell(contacteCell);
+                    }
                 });
 
                 tableElement.addEventListener("click", async function (event) {

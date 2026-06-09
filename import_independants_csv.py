@@ -44,6 +44,7 @@ TEXT_COLUMNS = [
     "commune",
     "code_commune",
     "telephone",
+    "commentaires",
     "adresse_complete",
     "raison_score",
 ]
@@ -91,6 +92,7 @@ INDEPENDANT_COLUMNS = [
     "commune",
     "code_commune",
     "telephone",
+    "commentaires",
     "adresse_complete",
     "age_etablissement_annees",
     "score_priorisation",
@@ -98,7 +100,7 @@ INDEPENDANT_COLUMNS = [
     "contacte",
     "supprime",
 ]
-OPTIONAL_CSV_COLUMNS = frozenset({"contacte", "supprime", "telephone"})
+OPTIONAL_CSV_COLUMNS = frozenset({"commentaires", "contacte", "supprime", "telephone"})
 
 
 def create_independants_table(conn: sqlite3.Connection) -> None:
@@ -139,6 +141,7 @@ def create_independants_table(conn: sqlite3.Connection) -> None:
             commune TEXT,
             code_commune TEXT,
             telephone TEXT NOT NULL DEFAULT '',
+            commentaires TEXT NOT NULL DEFAULT '',
             adresse_complete TEXT,
             age_etablissement_annees INTEGER,
             score_priorisation INTEGER NOT NULL DEFAULT 0,
@@ -190,6 +193,10 @@ def ensure_independants_columns(conn: sqlite3.Connection) -> None:
     if "contacte" not in columns:
         conn.execute(
             f"ALTER TABLE {TABLE_NAME} ADD COLUMN contacte INTEGER NOT NULL DEFAULT 0"
+        )
+    if "commentaires" not in columns:
+        conn.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN commentaires TEXT NOT NULL DEFAULT ''"
         )
 
 
