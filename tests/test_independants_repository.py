@@ -110,6 +110,7 @@ class IndependantsRepositoryTest(unittest.TestCase):
         self.assertEqual(set(RETURN_FIELDS), set(page["data"][0]))
         self.assertEqual(16, page["data"][0]["age_etablissement_annees"])
         self.assertEqual(10, page["data"][0]["score_priorisation"])
+        self.assertFalse(page["data"][0]["contacte"])
         self.assertEqual("", page["data"][0]["telephone"])
         self.assertIs(page["data"][0]["est_entrepreneur_individuel"], True)
         self.assertIs(page["data"][0]["est_micro_entrepreneur_probable"], False)

@@ -25,6 +25,7 @@ RETURN_FIELDS = (
     "est_micro_entrepreneur_probable",
     "caractere_employeur_unite_legale",
     "score_priorisation",
+    "contacte",
     "telephone",
     "adresse_complete",
 )
@@ -307,6 +308,7 @@ def _project_row(row: sqlite3.Row) -> dict[str, Any]:
     projected["est_micro_entrepreneur_probable"] = _parse_sqlite_bool(
         projected["est_micro_entrepreneur_probable"]
     )
+    projected["contacte"] = _parse_sqlite_bool(projected["contacte"])
     return projected
 
 

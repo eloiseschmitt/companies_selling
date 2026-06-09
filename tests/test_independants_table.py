@@ -28,6 +28,7 @@ class IndependantsTableTest(unittest.TestCase):
                         "est_micro_entrepreneur_probable": False,
                         "caractere_employeur_unite_legale": "O",
                         "score_priorisation": 10,
+                        "contacte": False,
                         "telephone": "",
                         "adresse_complete": "1 RUE A, 33000 BORDEAUX",
                     }
@@ -65,6 +66,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Ménage / nettoyage courant", body)
         self.assertIn("Profil intéressant", body)
         self.assertIn("Téléphone", body)
+        self.assertIn("Contacté", body)
         self.assertIn("Action", body)
         self.assertIn("profile-badge profile-yes", body)
         self.assertIn("interesting-row", body)
@@ -74,6 +76,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Double-cliquer pour modifier", body)
         self.assertIn("delete-button", body)
         self.assertIn("Supprimer", body)
+        self.assertIn("Non", body)
         self.assertIn("https://www.google.com/maps/search/?api=1", body)
         self.assertIn('value="alpha"', body)
         self.assertIn('value="BORDEAUX"', body)
@@ -88,7 +91,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn('data-column-name="nom_ou_denomination"', body)
         self.assertIn('data-column-name="score_priorisation"', body)
         self.assertIn('indicator.textContent = order[1] === "asc" ? "↑" : "↓"', body)
-        self.assertIn("targets: [6, 7, 9, 10, 11]", body)
+        self.assertIn("targets: [6, 7, 9, 10, 11, 12]", body)
         self.assertIn("saveTelephone", body)
         self.assertIn("editTelephoneCell", body)
         self.assertIn('tableElement.addEventListener("dblclick"', body)
