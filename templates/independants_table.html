@@ -422,6 +422,7 @@
             <div class="summary-title">
                 {{ total }} résultat{{ "s" if total != 1 else "" }} trouvé{{ "s" if total != 1 else "" }}
             </div>
+            <div>{{ deleted_total }} entrée{{ "s" if deleted_total != 1 else "" }} non affichée{{ "s" if deleted_total != 1 else "" }} car supprimée{{ "s" if deleted_total != 1 else "" }}.</div>
             <div>
                 <strong>Filtres actifs :</strong>
                 {% if active_filters %}

@@ -6,6 +6,7 @@ from pathlib import Path
 from import_independants_csv import create_independants_table
 from services.independants_repository import (
     RETURN_FIELDS,
+    count_deleted_independants,
     list_independants,
     mark_independant_deleted,
     normalize_french_phone_number,
@@ -203,6 +204,28 @@ class IndependantsRepositoryTest(unittest.TestCase):
                 pagination={"limit": -1},
                 database_path=self.database_path,
             )
+
+    def test_counts_deleted_independants(self) -> None:
+        conn = sqlite3.connect(self.database_path)
+        try:
+            conn.execute(
+                "UPDATE independants SET supprime = 1 WHERE siret IN (?, ?)",
+                ("11111111100011", "22222222200022"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        total = count_deleted_independants(database_path=self.database_path)
+
+        self.assertEqual(2, total)
+
+    def test_count_deleted_returns_zero_for_missing_database(self) -> None:
+        total = count_deleted_independants(
+            database_path=Path(self.temp_dir.name) / "missing.db"
+        )
+
+        self.assertEqual(0, total)
 
     def test_marks_independant_deleted(self) -> None:
         deleted = mark_independant_deleted(

@@ -190,6 +190,29 @@ def update_independant_commentaires(
     return commentaires
 
 
+def count_deleted_independants(
+    database_path: Path = DEFAULT_DATABASE_PATH,
+) -> int:
+    """Compte les indépendants masqués par suppression logique."""
+    if not database_path.exists():
+        return 0
+
+    with sqlite3.connect(database_path) as conn:
+        conn.row_factory = sqlite3.Row
+        if not _table_exists(conn):
+            return 0
+        _ensure_table_columns(conn)
+        total = conn.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM {TABLE_NAME}
+            WHERE supprime = 1
+            """
+        ).fetchone()[0]
+
+    return int(total)
+
+
 def mark_independant_deleted(
     siret: str,
     database_path: Path = DEFAULT_DATABASE_PATH,

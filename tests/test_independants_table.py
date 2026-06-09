@@ -11,7 +11,10 @@ class IndependantsTableTest(unittest.TestCase):
         self.client = TestClient(app)
 
     def test_table_renders_filters_rows_and_pagination_links(self) -> None:
-        with patch("main.list_db_independants") as list_independants:
+        with (
+            patch("main.list_db_independants") as list_independants,
+            patch("main.count_deleted_independants") as count_deleted,
+        ):
             list_independants.return_value = {
                 "data": [
                     {
@@ -38,6 +41,7 @@ class IndependantsTableTest(unittest.TestCase):
                 "limit": 25,
                 "offset": 25,
             }
+            count_deleted.return_value = 7
 
             response = self.client.get(
                 "/independants/table",
@@ -61,6 +65,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("ALPHA CLEAN", body)
         self.assertIn("1 RUE A, 33000 BORDEAUX", body)
         self.assertIn("80 résultats trouvés", body)
+        self.assertIn("7 entrées non affichées car supprimées", body)
         self.assertIn("Filtres actifs", body)
         self.assertIn("Recherche : alpha", body)
         self.assertIn("Commune : BORDEAUX", body)
@@ -115,6 +120,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Mise à jour impossible", body)
         self.assertIn("offset=0", body)
         self.assertIn("offset=50", body)
+        count_deleted.assert_called_once_with()
         list_independants.assert_called_once_with(
             filters={
                 "q": "alpha",

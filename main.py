@@ -16,6 +16,7 @@ from app import app
 from constants import MAPPING_HEADCOUNT
 from services.independants_repository import (
     ALLOWED_SORT_COLUMNS,
+    count_deleted_independants,
     mark_independant_deleted,
     update_independant_commentaires,
     update_independant_contacte,
@@ -780,6 +781,7 @@ def independants_table(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    deleted_total = count_deleted_independants()
     previous_offset = max(0, offset - limit)
     next_offset = offset + limit
     has_previous = offset > 0
@@ -816,6 +818,7 @@ def independants_table(
             "request": request,
             "items": enrich_independants_table_rows(page["data"]),
             "total": page["total"],
+            "deleted_total": deleted_total,
             "limit": limit,
             "max_limit": MAX_INDEPENDANTS_TABLE_LIMIT,
             "offset": offset,
