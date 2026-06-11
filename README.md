@@ -65,6 +65,15 @@ python -m app download-sources \
   --income-source "https://example/insee-filosofi-iris.zip"
 ```
 
+Après un premier téléchargement, les autres commandes retrouvent automatiquement les fichiers depuis `data/source_manifest.json`. En usage courant, le flux devient :
+
+```bash
+python -m app download-sources
+python -m app export-iris-candidates
+python -m app validate-mapping
+python -m app build-report
+```
+
 ## Remplir Le Mapping IRIS Par Quartier
 
 Les secteurs métier attendus sont définis dans `config/sector_iris_mapping.yml` :
@@ -83,10 +92,10 @@ Les secteurs métier attendus sont définis dans `config/sector_iris_mapping.yml
 Pour préparer le mapping, exporter tous les IRIS des communes concernées :
 
 ```bash
-python -m app export-iris-candidates \
-  --iris-source data/raw/insee_iris_geography.csv \
-  --output data/output/iris_candidates.csv
+python -m app export-iris-candidates
 ```
+
+La commande utilise `--iris-source` si fourni. Sinon elle cherche automatiquement la source géographique IRIS dans `data/source_manifest.json`.
 
 Le fichier source IRIS doit contenir au minimum :
 
@@ -112,10 +121,10 @@ Règle importante : ne pas affecter un IRIS à un quartier sans validation humai
 Valider le mapping :
 
 ```bash
-python -m app validate-mapping \
-  --sector-mapping config/sector_iris_mapping.yml \
-  --iris-source data/raw/insee_iris_geography.csv
+python -m app validate-mapping
 ```
+
+Comme pour l'export des candidats, `validate-mapping` utilise `--iris-source` si fourni, sinon la source IRIS du manifeste.
 
 La validation vérifie notamment que les IRIS mappés existent et appartiennent à la commune attendue.
 
@@ -124,13 +133,10 @@ La validation vérifie notamment que les IRIS mappés existent et appartiennent 
 Commande type :
 
 ```bash
-python -m app build-report \
-  --sector-mapping config/sector_iris_mapping.yml \
-  --income-file data/raw/insee_filosofi_iris_2021.zip \
-  --population-file data/raw/insee_rp_iris_population_2021.zip \
-  --household-file data/raw/insee_rp_iris_households_2021.zip \
-  --retired-csp-file data/raw/insee_rp_iris_retired_csp_2021.zip
+python -m app build-report
 ```
+
+`build-report` utilise les chemins explicites si `--income-file`, `--population-file`, `--household-file` ou `--retired-csp-file` sont fournis. Sinon il recherche automatiquement les fichiers correspondants dans `data/source_manifest.json`.
 
 La commande génère :
 

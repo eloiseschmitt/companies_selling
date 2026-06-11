@@ -53,6 +53,75 @@ class AppCliTest(unittest.TestCase):
 
         self.assertEqual(result, 0)
 
+    def test_export_iris_candidates_uses_manifest_when_source_not_provided(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            raw_dir = tmp_path / "data" / "raw"
+            raw_dir.mkdir(parents=True)
+            manifest_path = tmp_path / "data" / "source_manifest.json"
+            iris_path = raw_dir / "insee_iris_geography_2021.csv"
+            output_path = tmp_path / "output" / "iris_candidates.csv"
+            iris_path.write_text(
+                "iris;libiris;com;libcom\n330690101;Centre;33069;Le Bouscat\n",
+                encoding="utf-8",
+            )
+            write_manifest(
+                manifest_path,
+                "https://example.test/iris.csv",
+                "insee_iris_geography_2021.csv",
+            )
+
+            result = main(
+                [
+                    "export-iris-candidates",
+                    "--manifest",
+                    str(manifest_path),
+                    "--raw-dir",
+                    str(raw_dir),
+                    "--output",
+                    str(output_path),
+                ]
+            )
+
+            self.assertEqual(result, 0)
+            self.assertTrue(output_path.exists())
+
+    def test_validate_mapping_uses_manifest_when_source_not_provided(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            raw_dir = tmp_path / "data" / "raw"
+            raw_dir.mkdir(parents=True)
+            manifest_path = tmp_path / "data" / "source_manifest.json"
+            mapping_path = write_mapping(
+                tmp_path / "mapping.yml", {"Le Bouscat": ["330690101"]}
+            )
+            iris_path = raw_dir / "insee_iris_geography_2021.csv"
+            iris_path.write_text(
+                "iris;libiris;com;libcom\n330690101;Centre;33069;Le Bouscat\n",
+                encoding="utf-8",
+            )
+            write_manifest(
+                manifest_path,
+                "https://example.test/iris.csv",
+                "insee_iris_geography_2021.csv",
+            )
+
+            result = main(
+                [
+                    "validate-mapping",
+                    "--sector-mapping",
+                    str(mapping_path),
+                    "--manifest",
+                    str(manifest_path),
+                    "--raw-dir",
+                    str(raw_dir),
+                ]
+            )
+
+        self.assertEqual(result, 0)
+
     @unittest.skipIf(pandas is None, "pandas is not installed")
     def test_build_report_writes_expected_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -113,6 +182,67 @@ class AppCliTest(unittest.TestCase):
             self.assertTrue((output_dir / "source_manifest.json").exists())
             self.assertTrue((output_dir / "quality_report.md").exists())
 
+    @unittest.skipIf(pandas is None, "pandas is not installed")
+    def test_build_report_uses_manifest_when_files_not_provided(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            raw_dir = tmp_path / "data" / "raw"
+            raw_dir.mkdir(parents=True)
+            manifest_path = tmp_path / "data" / "source_manifest.json"
+            output_dir = tmp_path / "output"
+            mapping_path = write_mapping(
+                tmp_path / "mapping.yml", {"Le Bouscat": ["330690101"]}
+            )
+            files = {
+                "insee_filosofi_iris_2021.csv": ("iris;disp_med21\n330690101;30000\n"),
+                "insee_rp_iris_population_2021.csv": (
+                    "iris;p21_pop75p\n330690101;40\n"
+                ),
+                "insee_rp_iris_households_2021.csv": (
+                    "iris;p21_pop75p_seul\n330690101;12\n"
+                ),
+                "insee_rp_iris_retired_csp_2021.csv": (
+                    "iris;p21_retraites_anciens_cadres\n330690101;3\n"
+                ),
+            }
+            manifest_sources = {}
+            for filename, content in files.items():
+                (raw_dir / filename).write_text(content, encoding="utf-8")
+                manifest_sources[f"https://example.test/{filename}"] = {
+                    "name": filename,
+                    "source_url": f"https://example.test/{filename}",
+                    "downloaded_at": "2026-01-01T00:00:00+00:00",
+                    "vintage": "2021",
+                    "local_filename": filename,
+                    "sha256": "test",
+                }
+            manifest_path.write_text(
+                json.dumps({"sources": manifest_sources}),
+                encoding="utf-8",
+            )
+
+            result = main(
+                [
+                    "build-report",
+                    "--sector-mapping",
+                    str(mapping_path),
+                    "--manifest",
+                    str(manifest_path),
+                    "--raw-dir",
+                    str(raw_dir),
+                    "--output-dir",
+                    str(output_dir),
+                ]
+            )
+
+            self.assertEqual(result, 0)
+            self.assertTrue((output_dir / "sector_report.csv").exists())
+            self.assertTrue((output_dir / "sector_report.xlsx").exists())
+            report_content = (output_dir / "sector_report.csv").read_text(
+                encoding="utf-8-sig"
+            )
+            self.assertIn("Le Bouscat", report_content)
+
 
 def write_mapping(path: Path, values: dict[str, list[str]]) -> Path:
     lines = ["sectors:"]
@@ -124,6 +254,28 @@ def write_mapping(path: Path, values: dict[str, list[str]]) -> Path:
         else:
             lines.append(f"  {sector}: []")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def write_manifest(path: Path, source_url: str, local_filename: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "sources": {
+                    source_url: {
+                        "name": local_filename,
+                        "source_url": source_url,
+                        "downloaded_at": "2026-01-01T00:00:00+00:00",
+                        "vintage": "2021",
+                        "local_filename": local_filename,
+                        "sha256": "test",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     return path
 
 

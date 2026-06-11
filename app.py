@@ -7,7 +7,12 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from services.data_sources import SourceReference, download_sources, source_from_url
+from services.data_sources import (
+    SourceReference,
+    download_sources,
+    load_manifest,
+    source_from_url,
+)
 from services.geography import (
     build_iris_candidates,
     export_iris_candidates,
@@ -23,6 +28,18 @@ DEFAULT_SECTOR_MAPPING = Path("config") / "sector_iris_mapping.yml"
 DEFAULT_RAW_DIR = Path("data") / "raw"
 DEFAULT_SOURCE_MANIFEST = Path("data") / "source_manifest.json"
 DEFAULT_IRIS_CANDIDATES_OUTPUT = Path("data") / "output" / "iris_candidates.csv"
+
+SOURCE_KEYS = {
+    "income": "insee_filosofi_iris",
+    "population": "insee_rp_iris_population",
+    "household": "insee_rp_iris_households",
+    "retired_csp": "insee_rp_iris_retired_csp",
+    "iris_geography": "insee_iris_geography",
+}
+
+
+class CliSourceError(RuntimeError):
+    """Raised when a CLI command cannot resolve a required source file."""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,11 +85,15 @@ def add_common_options(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_manifest_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_SOURCE_MANIFEST)
+
+
 def add_download_sources_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("download-sources", help="Download source files.")
     parser.add_argument("--force-refresh", action="store_true")
-    parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
-    parser.add_argument("--manifest", type=Path, default=DEFAULT_SOURCE_MANIFEST)
+    add_manifest_options(parser)
     add_source_url_options(parser)
     add_common_options(parser)
 
@@ -82,9 +103,10 @@ def add_export_iris_candidates_parser(subparsers: argparse._SubParsersAction) ->
         "export-iris-candidates",
         help="Export IRIS rows from communes concerned by the sectors.",
     )
-    parser.add_argument("--iris-source", type=Path, required=True)
+    parser.add_argument("--iris-source", type=Path)
     parser.add_argument("--output", type=Path, default=DEFAULT_IRIS_CANDIDATES_OUTPUT)
     parser.add_argument("--force-refresh", action="store_true")
+    add_manifest_options(parser)
     add_common_options(parser)
 
 
@@ -92,7 +114,7 @@ def add_build_report_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("build-report", help="Build sector report files.")
     parser.add_argument("--force-refresh", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--manifest", type=Path, default=DEFAULT_SOURCE_MANIFEST)
+    add_manifest_options(parser)
     parser.add_argument("--income-file", type=Path)
     parser.add_argument("--population-file", type=Path)
     parser.add_argument("--household-file", type=Path)
@@ -105,8 +127,9 @@ def add_validate_mapping_parser(subparsers: argparse._SubParsersAction) -> None:
         "validate-mapping",
         help="Validate manual sector to IRIS mapping against an IRIS table.",
     )
-    parser.add_argument("--iris-source", type=Path, required=True)
+    parser.add_argument("--iris-source", type=Path)
     parser.add_argument("--force-refresh", action="store_true")
+    add_manifest_options(parser)
     add_common_options(parser)
 
 
@@ -142,7 +165,10 @@ def run_command(args: argparse.Namespace) -> int:
 def command_download_sources(args: argparse.Namespace) -> int:
     references = build_source_references(args)
     if not references:
-        logging.getLogger(__name__).warning("No sources provided to download.")
+        logging.getLogger(__name__).warning(
+            "No sources provided to download. Pass source URLs once, or use files "
+            "already recorded in data/source_manifest.json for later commands."
+        )
         return 0
     paths = download_sources(
         references,
@@ -156,7 +182,14 @@ def command_download_sources(args: argparse.Namespace) -> int:
 
 
 def command_export_iris_candidates(args: argparse.Namespace) -> int:
-    iris_areas = load_iris_table(args.iris_source)
+    iris_source = resolve_source_path(
+        explicit_path=args.iris_source,
+        manifest_path=args.manifest,
+        raw_dir=args.raw_dir,
+        source_key=SOURCE_KEYS["iris_geography"],
+        label="IRIS geography",
+    )
+    iris_areas = load_iris_table(iris_source)
     candidates = build_iris_candidates(iris_areas)
     export_iris_candidates(args.output, candidates)
     logging.getLogger(__name__).info(
@@ -170,10 +203,34 @@ def command_build_report(args: argparse.Namespace) -> int:
         sector_mapping_path=args.sector_mapping,
         output_dir=args.output_dir,
         source_manifest_path=args.manifest,
-        income_path=args.income_file,
-        population_path=args.population_file,
-        household_path=args.household_file,
-        retired_csp_path=args.retired_csp_file,
+        income_path=resolve_optional_report_source(
+            args.income_file,
+            args.manifest,
+            args.raw_dir,
+            SOURCE_KEYS["income"],
+            "Filosofi income",
+        ),
+        population_path=resolve_optional_report_source(
+            args.population_file,
+            args.manifest,
+            args.raw_dir,
+            SOURCE_KEYS["population"],
+            "population",
+        ),
+        household_path=resolve_optional_report_source(
+            args.household_file,
+            args.manifest,
+            args.raw_dir,
+            SOURCE_KEYS["household"],
+            "household",
+        ),
+        retired_csp_path=resolve_optional_report_source(
+            args.retired_csp_file,
+            args.manifest,
+            args.raw_dir,
+            SOURCE_KEYS["retired_csp"],
+            "retired CSP+",
+        ),
         output_format=args.output_format,
     )
     logging.getLogger(__name__).info(
@@ -183,32 +240,111 @@ def command_build_report(args: argparse.Namespace) -> int:
 
 
 def command_validate_mapping(args: argparse.Namespace) -> int:
+    iris_source = resolve_source_path(
+        explicit_path=args.iris_source,
+        manifest_path=args.manifest,
+        raw_dir=args.raw_dir,
+        source_key=SOURCE_KEYS["iris_geography"],
+        label="IRIS geography",
+    )
     mapping = load_sector_iris_mapping(args.sector_mapping)
-    iris_areas = load_iris_table(args.iris_source)
+    iris_areas = load_iris_table(iris_source)
     validate_sector_mapping(mapping, iris_areas)
     logging.getLogger(__name__).info("Sector mapping is valid.")
     return 0
 
 
+def resolve_optional_report_source(
+    explicit_path: Path | None,
+    manifest_path: Path,
+    raw_dir: Path,
+    source_key: str,
+    label: str,
+) -> Path | None:
+    try:
+        return resolve_source_path(
+            explicit_path, manifest_path, raw_dir, source_key, label
+        )
+    except CliSourceError as exc:
+        logging.getLogger(__name__).warning("%s", exc)
+        return None
+
+
+def resolve_source_path(
+    explicit_path: Path | None,
+    manifest_path: Path,
+    raw_dir: Path,
+    source_key: str,
+    label: str,
+) -> Path:
+    if explicit_path is not None:
+        if not explicit_path.exists():
+            raise CliSourceError(f"{label} source file not found: {explicit_path}")
+        return explicit_path
+
+    manifest_path = Path(manifest_path)
+    if not manifest_path.exists():
+        raise CliSourceError(
+            f"No {label} source provided and manifest not found: {manifest_path}. "
+            "Run download-sources with source URLs first, or pass the source file "
+            "explicitly."
+        )
+
+    manifest = load_manifest(manifest_path)
+    candidates: list[Path] = []
+    for entry in manifest.values():
+        local_filename = str(entry.get("local_filename") or "")
+        if not local_filename.startswith(source_key):
+            continue
+        local_path = resolve_manifest_local_path(
+            local_filename=local_filename,
+            manifest_path=manifest_path,
+            raw_dir=raw_dir,
+        )
+        if local_path.exists():
+            candidates.append(local_path)
+
+    if not candidates:
+        raise CliSourceError(
+            f"No {label} source found in {manifest_path} for key {source_key}. "
+            "Run download-sources with the corresponding URL, or pass the source "
+            "file explicitly."
+        )
+    return sorted(candidates)[-1]
+
+
+def resolve_manifest_local_path(
+    local_filename: str,
+    manifest_path: Path,
+    raw_dir: Path,
+) -> Path:
+    local_path = Path(local_filename)
+    if local_path.is_absolute():
+        return local_path
+    if raw_dir != DEFAULT_RAW_DIR:
+        return raw_dir / local_filename
+    return manifest_path.parent / "raw" / local_filename
+
+
 def build_source_references(args: argparse.Namespace) -> list[SourceReference]:
     source_specs = (
-        ("insee_filosofi_iris", "INSEE Filosofi IRIS", args.income_source),
+        (SOURCE_KEYS["income"], "INSEE Filosofi IRIS", args.income_source),
         (
-            "insee_rp_iris_population",
+            SOURCE_KEYS["population"],
             "INSEE Recensement de la population IRIS",
             args.population_source,
         ),
         (
-            "insee_rp_iris_households",
+            SOURCE_KEYS["household"],
             "INSEE Recensement de la population IRIS - ménages",
             args.household_source,
         ),
         (
-            "insee_rp_iris_retired_csp",
+            SOURCE_KEYS["retired_csp"],
             "INSEE Recensement de la population IRIS - retraités CSP+",
             args.retired_csp_source,
         ),
-        ("insee_iris_geography", "INSEE Géographie IRIS", args.iris_source),
+        (SOURCE_KEYS["iris_geography"], "INSEE Géographie IRIS", args.iris_source),
     )
     return [
         source_from_url(key=key, name=name, url=url)

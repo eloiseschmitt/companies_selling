@@ -1,0 +1,28 @@
+{
+  "sources": {
+    "https://www.insee.fr/fr/statistiques/fichier/7708995/reference_IRIS_geo2024.zip": {
+      "downloaded_at": "2026-06-11T14:31:53.485663+00:00",
+      "local_filename": "insee_iris_geography_2024.zip",
+      "name": "INSEE Géographie IRIS",
+      "sha256": "e97c79b7a9b59750f2261dbff803fd2be074353ac59aeb74670c493437050944",
+      "source_url": "https://www.insee.fr/fr/statistiques/fichier/7708995/reference_IRIS_geo2024.zip",
+      "vintage": "2024"
+    },
+    "https://www.insee.fr/fr/statistiques/fichier/8229323/BASE_TD_FILO_IRIS_2021_DEC_XLSX.zip": {
+      "downloaded_at": "2026-06-11T14:31:19.959747+00:00",
+      "local_filename": "insee_filosofi_iris_2021.zip",
+      "name": "INSEE Filosofi IRIS",
+      "sha256": "8ab0afb3fd674c508895e39af8c852cb5c11575826eebb2b757fb7d91ac9acb4",
+      "source_url": "https://www.insee.fr/fr/statistiques/fichier/8229323/BASE_TD_FILO_IRIS_2021_DEC_XLSX.zip",
+      "vintage": "2021"
+    },
+    "https://www.insee.fr/fr/statistiques/fichier/8647014/base-ic-evol-struct-pop-2022_csv.zip": {
+      "downloaded_at": "2026-06-11T14:31:52.590382+00:00",
+      "local_filename": "insee_rp_iris_retired_csp_2022.zip",
+      "name": "INSEE Recensement de la population IRIS - retraités CSP+",
+      "sha256": "f42c155e14d32c6ca9697f74795a56c046c1b4e5404279cf70a173b210eb0bc5",
+      "source_url": "https://www.insee.fr/fr/statistiques/fichier/8647014/base-ic-evol-struct-pop-2022_csv.zip",
+      "vintage": "2022"
+    }
+  }
+}
