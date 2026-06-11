@@ -1,0 +1,14 @@
+{
+  "sectors": [
+    {"name": "Bordeaux Caudéran", "iris_codes": []},
+    {"name": "Le Bouscat", "iris_codes": []},
+    {"name": "Bruges", "iris_codes": []},
+    {"name": "Mérignac centre", "iris_codes": []},
+    {"name": "Saint-Médard-en-Jalles", "iris_codes": []},
+    {"name": "Talence", "iris_codes": []},
+    {"name": "Pessac centre", "iris_codes": []},
+    {"name": "Bègles secteur résidentiel", "iris_codes": []},
+    {"name": "Bordeaux Fondaudège", "iris_codes": []},
+    {"name": "Bordeaux Chartrons", "iris_codes": []}
+  ]
+}

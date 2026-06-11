@@ -460,6 +460,7 @@ Exemples :
 - `download_annual_accounts.py` : téléchargement des derniers bilans PDF publics via l'API INPI/RNE
 - `generate_companies_html.py` : génération de `companies.html` en statique
 - `scripts/export_bordeaux_independants.py` : export CSV des entrepreneurs individuels ciblés depuis l'API SIRENE
+- `scripts/extract_bordeaux_iris_indicators.py` : extraction d'indicateurs INSEE IRIS pour des secteurs métier de Bordeaux Métropole
 
 ## Services
 
@@ -467,6 +468,47 @@ Exemples :
 - `services/inpi_annual_accounts.py` : client HTTP minimal pour l'API INPI/RNE des comptes annuels
 - `services/insee_sirene.py` : client HTTP pour l'API SIRENE INSEE v3.11
 - `services/insee_sirene_mapping.py` : mapping des réponses SIRENE vers les lignes CSV consolidées
+- `services/insee_iris_indicators.py` : chargement, calcul et persistance SQLite des indicateurs INSEE IRIS
+
+## Indicateurs INSEE IRIS Bordeaux Métropole
+
+Le script `scripts.extract_bordeaux_iris_indicators` produit un tableau d'indicateurs IRIS pour des secteurs métier de Bordeaux Métropole :
+
+- revenu disponible médian par unité de consommation ;
+- population de 75 ans et plus ;
+- personnes ou ménages de 75 ans et plus vivant seuls, si la colonne est disponible ;
+- retraités CSP+, uniquement en approximation si les colonnes nécessaires sont disponibles.
+
+Le périmètre secteur -> IRIS doit être renseigné explicitement dans un fichier JSON. Le modèle fourni est `config/bordeaux_iris_sectors.example.json`. Les listes `iris_codes` sont volontairement vides : le script refuse de calculer un secteur sans IRIS validés afin de ne pas inventer de périmètre statistique.
+
+Exemple d'exécution avec des fichiers INSEE CSV ou ZIP locaux ou distants :
+
+```bash
+python -m scripts.extract_bordeaux_iris_indicators \
+  --config config/bordeaux_iris_sectors.json \
+  --income-source path-or-url-to-filosofi-iris.zip \
+  --income-vintage 2021 \
+  --population-source path-or-url-to-rp-iris-population.zip \
+  --population-vintage 2021 \
+  --household-source path-or-url-to-rp-iris-households.zip \
+  --household-vintage 2021 \
+  --output bordeaux_iris_indicators.csv \
+  --db companies.db
+```
+
+Le script :
+
+- accepte des sources CSV ou ZIP contenant un CSV ;
+- télécharge les URL dans `.cache/insee_iris/` et réutilise le cache local ;
+- écrit les résultats dans `bordeaux_iris_indicators.csv` ;
+- persiste les mêmes résultats dans la table SQLite `insee_iris_indicators` ;
+- conserve pour chaque indicateur la source, le millésime, la qualité du calcul et la méthode.
+
+Limites importantes :
+
+- un revenu médian agrégé sur plusieurs IRIS n'est pas recalculable exactement depuis des médianes IRIS ; le script produit donc une approximation pondérée si une colonne de poids est disponible ;
+- l'indicateur retraités CSP+ n'est pas une donnée standard directement croisée dans les fichiers IRIS ; quand les colonnes ne permettent pas une approximation explicite, la valeur reste vide avec une note ;
+- les noms de secteurs comme `Mérignac centre` ou `Bègles secteur résidentiel` ne sont pas des zonages INSEE.
 
 ## Fichiers importants
 
