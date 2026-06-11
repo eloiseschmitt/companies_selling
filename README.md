@@ -471,6 +471,8 @@ Exemples :
 - `services/insee_sirene_mapping.py` : mapping des réponses SIRENE vers les lignes CSV consolidées
 - `services/data_sources.py` : téléchargement des sources externes, stockage dans `data/raw/` et maintenance du manifeste `data/source_manifest.json`
 - `services/geography.py` : chargement de la table géographique IRIS et validation du mapping manuel secteur -> IRIS
+- `services/income_loader.py` : chargement des fichiers Filosofi IRIS et extraction du revenu disponible médian par unité de consommation
+- `services/population_loader.py` : chargement des fichiers de recensement IRIS et calcul de la population de 75 ans et plus
 - `services/insee_iris_indicators.py` : chargement, calcul et persistance SQLite des indicateurs INSEE IRIS
 
 ## Indicateurs INSEE IRIS Bordeaux Métropole
@@ -500,6 +502,26 @@ La table IRIS source doit contenir au minimum :
 - libellé IRIS ;
 - code commune ;
 - nom commune.
+
+Le module `services.income_loader` charge les fichiers Filosofi IRIS en CSV, ZIP, XLS/XLSX ou Parquet via pandas et produit une table normalisée :
+
+- `iris_code` ;
+- `iris_label` si disponible ;
+- `commune_code` si disponible ;
+- `median_disposable_income` ;
+- `source_name` ;
+- `source_year`.
+
+Le module `services.population_loader` charge les fichiers de recensement IRIS en CSV, ZIP, XLS/XLSX ou Parquet via pandas et produit une table normalisée :
+
+- `iris_code` ;
+- `population_total` si disponible ;
+- `population_75_plus` ;
+- `source_name` ;
+- `source_year` ;
+- `quality_flag`.
+
+`quality_flag` vaut `exact` quand les colonnes disponibles permettent un calcul précis de 75 ans et plus, `approximate_age_bands` quand seules des tranches plus larges sont disponibles.
 
 Exemple d'exécution avec des fichiers INSEE CSV ou ZIP locaux ou distants :
 
