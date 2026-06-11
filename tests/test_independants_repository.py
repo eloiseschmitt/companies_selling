@@ -158,6 +158,24 @@ class IndependantsRepositoryTest(unittest.TestCase):
         self.assertEqual(1, page["total"])
         self.assertEqual("111111111", page["data"][0]["siren"])
 
+    def test_filters_by_existing_phone_number(self) -> None:
+        update_independant_telephone(
+            "22222222200022",
+            "06 12 34 56 78",
+            database_path=self.database_path,
+        )
+
+        page = list_independants(
+            filters={"telephone_renseigne": "oui"},
+            sort={"column": "siren", "direction": "asc"},
+            pagination={"limit": 10, "offset": 0},
+            database_path=self.database_path,
+        )
+
+        self.assertEqual(1, page["total"])
+        self.assertEqual("222222222", page["data"][0]["siren"])
+        self.assertEqual("06 12 34 56 78", page["data"][0]["telephone"])
+
     def test_filters_deleted_rows_when_requested(self) -> None:
         conn = sqlite3.connect(self.database_path)
         try:

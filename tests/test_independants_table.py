@@ -52,6 +52,7 @@ class IndependantsTableTest(unittest.TestCase):
                     "code_naf": "8121Z",
                     "score_min": "5",
                     "annee_creation": "2010",
+                    "telephone_renseigne": "oui",
                     "employeur": "oui",
                     "sort_by": "score_priorisation",
                     "sort_order": "desc",
@@ -71,6 +72,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Recherche : alpha", body)
         self.assertIn("Commune : BORDEAUX", body)
         self.assertIn("Année création : 2010", body)
+        self.assertIn("Téléphone renseigné : oui", body)
         self.assertIn("Ménage / nettoyage courant", body)
         self.assertIn("Profil intéressant", body)
         self.assertIn("Téléphone", body)
@@ -97,6 +99,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("q=alpha", body)
         self.assertIn("commune=BORDEAUX", body)
         self.assertIn("annee_creation=2010", body)
+        self.assertIn("telephone_renseigne=oui", body)
         self.assertIn('id="independants-table"', body)
         self.assertIn("cdn.datatables.net", body)
         self.assertIn("Recherche instantanée", body)
@@ -133,6 +136,7 @@ class IndependantsTableTest(unittest.TestCase):
                 "code_naf": "8121Z",
                 "score_min": "5",
                 "annee_creation": "2010",
+                "telephone_renseigne": "oui",
                 "employeur": "oui",
                 "supprime": False,
             },

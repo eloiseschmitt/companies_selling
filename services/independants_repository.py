@@ -312,6 +312,13 @@ def _build_where_clause(filters: Mapping[str, Any]) -> tuple[str, list[Any]]:
         clauses.append("substr(date_creation_etablissement, 1, 4) = ?")
         params.append(annee_creation)
 
+    telephone_renseigne = filters.get("telephone_renseigne")
+    if telephone_renseigne is not None and telephone_renseigne != "":
+        if _parse_filter_bool(telephone_renseigne):
+            clauses.append("TRIM(COALESCE(telephone, '')) != ''")
+        else:
+            clauses.append("TRIM(COALESCE(telephone, '')) = ''")
+
     employeur = filters.get("employeur")
     if employeur is not None and employeur != "":
         if _parse_filter_bool(employeur):
