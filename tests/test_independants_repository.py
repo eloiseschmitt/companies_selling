@@ -147,16 +147,16 @@ class IndependantsRepositoryTest(unittest.TestCase):
 
         self.assertEqual(["222222222", "333333333"], [r["siren"] for r in page["data"]])
 
-    def test_filters_by_creation_year(self) -> None:
+    def test_filters_by_creation_years(self) -> None:
         page = list_independants(
-            filters={"annee_creation": "2010"},
+            filters={"annee_creation": "2010, 2024"},
             sort={"column": "siren", "direction": "asc"},
             pagination={"limit": 10, "offset": 0},
             database_path=self.database_path,
         )
 
-        self.assertEqual(1, page["total"])
-        self.assertEqual("111111111", page["data"][0]["siren"])
+        self.assertEqual(2, page["total"])
+        self.assertEqual(["111111111", "222222222"], [r["siren"] for r in page["data"]])
 
     def test_filters_by_existing_phone_number(self) -> None:
         update_independant_telephone(

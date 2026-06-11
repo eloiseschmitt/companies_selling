@@ -303,14 +303,11 @@ def _build_where_clause(filters: Mapping[str, Any]) -> tuple[str, list[Any]]:
         clauses.append("score_priorisation >= ?")
         params.append(parsed_score_min)
 
-    annee_creation = _clean(filters.get("annee_creation"))
-    if annee_creation:
-        if len(annee_creation) != 4 or not annee_creation.isdigit():
-            raise ValueError(
-                "Le filtre annee_creation doit être une année au format YYYY."
-            )
-        clauses.append("substr(date_creation_etablissement, 1, 4) = ?")
-        params.append(annee_creation)
+    annees_creation = _parse_creation_years(filters.get("annee_creation"))
+    if annees_creation:
+        placeholders = ", ".join("?" for _ in annees_creation)
+        clauses.append(f"substr(date_creation_etablissement, 1, 4) IN ({placeholders})")
+        params.extend(annees_creation)
 
     telephone_renseigne = filters.get("telephone_renseigne")
     if telephone_renseigne is not None and telephone_renseigne != "":
@@ -457,6 +454,26 @@ def _parse_filter_bool(value: Any) -> bool:
     if normalized in {"false", "0", "no", "non", "n"}:
         return False
     raise ValueError("Le filtre employeur doit être un booléen ou oui/non.")
+
+
+def _parse_creation_years(value: Any) -> list[str]:
+    cleaned = _clean(value)
+    if not cleaned:
+        return []
+
+    years: list[str] = []
+    seen_years = set()
+    for year in re.split(r"[\s,;]+", cleaned):
+        if not year:
+            continue
+        if len(year) != 4 or not year.isdigit():
+            raise ValueError(
+                "Le filtre annee_creation doit contenir des années au format YYYY."
+            )
+        if year not in seen_years:
+            years.append(year)
+            seen_years.add(year)
+    return years
 
 
 def _parse_sqlite_bool(value: Any) -> bool:

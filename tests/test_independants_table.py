@@ -51,7 +51,7 @@ class IndependantsTableTest(unittest.TestCase):
                     "code_postal": "33000",
                     "code_naf": "8121Z",
                     "score_min": "5",
-                    "annee_creation": "2010",
+                    "annee_creation": "2010,2024",
                     "telephone_renseigne": "oui",
                     "employeur": "oui",
                     "sort_by": "score_priorisation",
@@ -71,7 +71,7 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("Filtres actifs", body)
         self.assertIn("Recherche : alpha", body)
         self.assertIn("Commune : BORDEAUX", body)
-        self.assertIn("Année création : 2010", body)
+        self.assertIn("Année création : 2010,2024", body)
         self.assertIn("Téléphone renseigné : oui", body)
         self.assertIn("Ménage / nettoyage courant", body)
         self.assertIn("Profil intéressant", body)
@@ -95,10 +95,10 @@ class IndependantsTableTest(unittest.TestCase):
         self.assertIn("https://www.google.com/maps/search/?api=1", body)
         self.assertIn('value="alpha"', body)
         self.assertIn('value="BORDEAUX"', body)
-        self.assertIn('value="2010"', body)
+        self.assertIn('value="2010,2024"', body)
         self.assertIn("q=alpha", body)
         self.assertIn("commune=BORDEAUX", body)
-        self.assertIn("annee_creation=2010", body)
+        self.assertIn("annee_creation=2010%2C2024", body)
         self.assertIn("telephone_renseigne=oui", body)
         self.assertIn('id="independants-table"', body)
         self.assertIn("cdn.datatables.net", body)
@@ -135,7 +135,7 @@ class IndependantsTableTest(unittest.TestCase):
                 "code_postal": "33000",
                 "code_naf": "8121Z",
                 "score_min": "5",
-                "annee_creation": "2010",
+                "annee_creation": "2010,2024",
                 "telephone_renseigne": "oui",
                 "employeur": "oui",
                 "supprime": False,
