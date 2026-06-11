@@ -33,14 +33,17 @@ class IncomeLoaderTest(unittest.TestCase):
             df = load_filosofi_iris(path)
             output = extract_median_income_by_iris(df)
 
-        self.assertEqual(list(output.columns), [
-            "iris_code",
-            "iris_label",
-            "commune_code",
-            "median_disposable_income",
-            "source_name",
-            "source_year",
-        ])
+        self.assertEqual(
+            list(output.columns),
+            [
+                "iris_code",
+                "iris_label",
+                "commune_code",
+                "median_disposable_income",
+                "source_name",
+                "source_year",
+            ],
+        )
         self.assertEqual(output.loc[0, "iris_code"], "330630101")
         self.assertEqual(output.loc[0, "iris_label"], "Cauderan")
         self.assertEqual(output.loc[0, "commune_code"], "33063")
@@ -62,6 +65,30 @@ class IncomeLoaderTest(unittest.TestCase):
 
         self.assertEqual(output.loc[0, "median_disposable_income"], 30000.0)
         self.assertEqual(output.loc[0, "source_year"], "2020")
+
+    def test_load_filosofi_zip_with_insee_xlsx(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            excel_path = tmp_path / "BASE_TD_FILO_IRIS_2021_DEC.xlsx"
+            zip_path = tmp_path / "filosofi_2021.zip"
+            raw_df = pandas.DataFrame(
+                [
+                    ["Titre", None, None, None],
+                    ["Source", None, None, None],
+                    ["IRIS", "Libellé de l'IRIS", "Commune ou ARM", "Médiane (€)"],
+                    ["IRIS", "LIBIRIS", "COM", "DEC_MED21"],
+                    ["330630101", "Cauderan", "33063", "30000"],
+                ]
+            )
+            raw_df.to_excel(excel_path, index=False, header=False)
+            with zipfile.ZipFile(zip_path, "w") as archive:
+                archive.write(excel_path, arcname=excel_path.name)
+
+            df = load_filosofi_iris(zip_path)
+            output = extract_median_income_by_iris(df)
+
+        self.assertEqual(output.loc[0, "iris_code"], "330630101")
+        self.assertEqual(output.loc[0, "median_disposable_income"], 30000.0)
 
     def test_extract_raises_explicit_error_when_income_column_missing(self) -> None:
         df = pandas.DataFrame(

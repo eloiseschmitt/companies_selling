@@ -40,6 +40,7 @@ INSEE_SOURCE_REGISTRY: dict[str, SourceReference] = {}
 class SourceManifestEntry:
     """Metadata persisted for one downloaded source file."""
 
+    source_key: str
     name: str
     source_url: str
     downloaded_at: str
@@ -177,7 +178,7 @@ def save_manifest_entry(
 ) -> None:
     """Upsert one manifest entry keyed by source URL."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    manifest[entry.source_url] = asdict(entry)
+    manifest[entry.source_key] = asdict(entry)
     path.write_text(
         json.dumps({"sources": manifest}, ensure_ascii=False, indent=2, sort_keys=True),
         encoding="utf-8",
@@ -190,6 +191,7 @@ def build_manifest_entry(
 ) -> SourceManifestEntry:
     """Create manifest metadata for a local source file."""
     return SourceManifestEntry(
+        source_key=reference.key,
         name=reference.name,
         source_url=reference.url,
         downloaded_at=datetime.now(timezone.utc).isoformat(),

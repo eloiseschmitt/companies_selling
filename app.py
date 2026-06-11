@@ -294,7 +294,10 @@ def resolve_source_path(
     candidates: list[Path] = []
     for entry in manifest.values():
         local_filename = str(entry.get("local_filename") or "")
-        if not local_filename.startswith(source_key):
+        manifest_source_key = str(entry.get("source_key") or "")
+        if manifest_source_key and manifest_source_key != source_key:
+            continue
+        if not manifest_source_key and not local_filename.startswith(source_key):
             continue
         local_path = resolve_manifest_local_path(
             local_filename=local_filename,
@@ -305,12 +308,28 @@ def resolve_source_path(
             candidates.append(local_path)
 
     if not candidates:
+        candidates = find_raw_source_candidates(raw_dir, source_key)
+
+    if not candidates:
         raise CliSourceError(
             f"No {label} source found in {manifest_path} for key {source_key}. "
             "Run download-sources with the corresponding URL, or pass the source "
             "file explicitly."
         )
     return sorted(candidates)[-1]
+
+
+def find_raw_source_candidates(raw_dir: Path, source_key: str) -> list[Path]:
+    if not raw_dir.exists():
+        return []
+    supported_suffixes = {".csv", ".zip", ".xlsx", ".xls", ".parquet"}
+    return sorted(
+        path
+        for path in raw_dir.iterdir()
+        if path.is_file()
+        and path.name.startswith(source_key)
+        and path.suffix.lower() in supported_suffixes
+    )
 
 
 def resolve_manifest_local_path(

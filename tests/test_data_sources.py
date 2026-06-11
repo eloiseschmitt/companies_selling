@@ -46,7 +46,8 @@ class DataSourcesTest(unittest.TestCase):
             get.assert_called_once()
 
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-            entry = payload["sources"]["https://example.test/filosofi_iris_2021.zip"]
+            entry = payload["sources"]["insee_filosofi_iris"]
+            self.assertEqual(entry["source_key"], "insee_filosofi_iris")
             self.assertEqual(entry["name"], "INSEE Filosofi IRIS")
             self.assertEqual(
                 entry["source_url"], "https://example.test/filosofi_iris_2021.zip"
@@ -84,7 +85,46 @@ class DataSourcesTest(unittest.TestCase):
             self.assertEqual(path.read_bytes(), b"existing")
             get.assert_not_called()
             manifest = load_manifest(manifest_path)
-            self.assertIn("https://example.test/rp_iris_2021.csv", manifest)
+            self.assertIn("insee_rp_iris_population", manifest)
+
+    def test_download_sources_with_same_url_keep_distinct_manifest_entries(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            raw_dir = tmp_path / "data" / "raw"
+            manifest_path = tmp_path / "data" / "source_manifest.json"
+            response = Mock()
+            response.content = b"iris;value\n330630101;1\n"
+            response.raise_for_status.return_value = None
+
+            with patch("services.data_sources.requests.get", return_value=response):
+                download_source(
+                    SourceReference(
+                        key="insee_rp_iris_population",
+                        name="population",
+                        url="https://example.test/same.zip",
+                        expected_format="zip",
+                        vintage="2022",
+                    ),
+                    raw_dir=raw_dir,
+                    manifest_path=manifest_path,
+                )
+                download_source(
+                    SourceReference(
+                        key="insee_rp_iris_households",
+                        name="households",
+                        url="https://example.test/same.zip",
+                        expected_format="zip",
+                        vintage="2022",
+                    ),
+                    raw_dir=raw_dir,
+                    manifest_path=manifest_path,
+                )
+
+            manifest = load_manifest(manifest_path)
+            self.assertIn("insee_rp_iris_population", manifest)
+            self.assertIn("insee_rp_iris_households", manifest)
 
     def test_download_source_force_refresh_overwrites_existing_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

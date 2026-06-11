@@ -40,6 +40,12 @@ MEDIAN_INCOME_CANDIDATES = (
     "mediane_revenu_disponible_uc",
     "mediane_niveau_vie",
     "revenu_disponible_median_uc",
+    "dec_med",
+    "dec_med21",
+    "dec_med20",
+    "dec_med19",
+    "dec_med18",
+    "dec_med17",
     "disp_med",
     "disp_med21",
     "disp_med20",
@@ -80,9 +86,9 @@ def load_filosofi_iris(file_path: Path) -> pandas.DataFrame:
     if suffix == ".csv":
         df = read_csv(path)
     elif suffix == ".zip":
-        df = read_csv_from_zip(path)
+        df = read_rows_from_zip(path)
     elif suffix in {".xlsx", ".xls"}:
-        df = pandas.read_excel(path, dtype=str)
+        df = read_excel_with_detected_header(path)
     elif suffix == ".parquet":
         df = pandas.read_parquet(path)
     else:
@@ -149,15 +155,53 @@ def read_csv(path: Path) -> pandas.DataFrame:
     return pandas.read_csv(path, sep=separator, dtype=str, encoding="utf-8-sig")
 
 
-def read_csv_from_zip(path: Path) -> pandas.DataFrame:
+def read_rows_from_zip(path: Path) -> pandas.DataFrame:
     with zipfile.ZipFile(path) as archive:
         csv_names = [
             name for name in archive.namelist() if name.lower().endswith(".csv")
         ]
-        if not csv_names:
-            raise UnsupportedFilosofiFormatError(f"No CSV found in ZIP archive: {path}")
-        with archive.open(csv_names[0]) as csv_file:
-            return pandas.read_csv(csv_file, sep=None, engine="python", dtype=str)
+        if csv_names:
+            with archive.open(csv_names[0]) as csv_file:
+                return pandas.read_csv(csv_file, sep=None, engine="python", dtype=str)
+
+        excel_names = [
+            name
+            for name in archive.namelist()
+            if name.lower().endswith((".xlsx", ".xls"))
+        ]
+        if excel_names:
+            with archive.open(excel_names[0]) as excel_file:
+                return read_excel_with_detected_header(excel_file)
+
+    raise UnsupportedFilosofiFormatError(
+        f"No CSV or Excel file found in ZIP archive: {path}"
+    )
+
+
+def read_excel_with_detected_header(source: object) -> pandas.DataFrame:
+    raw_df = pandas.read_excel(source, header=None, dtype=str)
+    header_index = find_excel_header_index(raw_df)
+    if header_index is None:
+        raise UnsupportedFilosofiFormatError(
+            "Unable to detect Filosofi header row in Excel file."
+        )
+
+    df = raw_df.iloc[header_index + 1 :].copy()
+    df.columns = [str(value).strip() for value in raw_df.iloc[header_index]]
+    df = df.dropna(how="all")
+    return df
+
+
+def find_excel_header_index(df: pandas.DataFrame) -> int | None:
+    iris_candidates = {normalize_column_name(column) for column in IRIS_CODE_CANDIDATES}
+    income_candidates = {
+        normalize_column_name(column) for column in MEDIAN_INCOME_CANDIDATES
+    }
+    for index, row in df.iterrows():
+        values = {normalize_column_name(str(value)) for value in row.dropna()}
+        if values & iris_candidates and values & income_candidates:
+            return int(index)
+    return None
 
 
 def detect_csv_separator(path: Path) -> str | None:

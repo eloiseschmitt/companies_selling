@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from services.sector_aggregator import aggregate_sector_indicators
 
 DEFAULT_OUTPUT_DIR = Path("data") / "output"
 DEFAULT_SOURCE_MANIFEST = Path("data") / "source_manifest.json"
+logger = logging.getLogger(__name__)
 
 
 class ReportBuildError(RuntimeError):
@@ -77,25 +79,47 @@ def build_sector_report(
 def load_optional_income(path: Path | None) -> pandas.DataFrame | None:
     if path is None:
         return None
-    return extract_median_income_by_iris(load_filosofi_iris(path))
+    try:
+        return extract_median_income_by_iris(load_filosofi_iris(path))
+    except Exception as exc:
+        logger.warning("Income source ignored because it could not be loaded: %s", exc)
+        return None
 
 
 def load_optional_population(path: Path | None) -> pandas.DataFrame | None:
     if path is None:
         return None
-    return extract_population_75_plus_by_iris(load_population_iris(path))
+    try:
+        return extract_population_75_plus_by_iris(load_population_iris(path))
+    except Exception as exc:
+        logger.warning(
+            "Population source ignored because it could not be loaded: %s", exc
+        )
+        return None
 
 
 def load_optional_household(path: Path | None) -> pandas.DataFrame | None:
     if path is None:
         return None
-    return extract_single_75_plus_by_iris(load_household_iris(path))
+    try:
+        return extract_single_75_plus_by_iris(load_household_iris(path))
+    except Exception as exc:
+        logger.warning(
+            "Household source ignored because it could not be loaded: %s", exc
+        )
+        return None
 
 
 def load_optional_retired_csp(path: Path | None) -> pandas.DataFrame | None:
     if path is None:
         return None
-    return extract_retired_csp_plus_by_iris(load_retired_csp_iris(path))
+    try:
+        return extract_retired_csp_plus_by_iris(load_retired_csp_iris(path))
+    except Exception as exc:
+        logger.warning(
+            "Retired CSP+ source ignored because it could not be loaded: %s", exc
+        )
+        return None
 
 
 def write_xlsx(report: pandas.DataFrame, output_path: Path) -> None:

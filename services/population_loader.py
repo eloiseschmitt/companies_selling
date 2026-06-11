@@ -334,6 +334,10 @@ def find_column(
     for normalized_name, original_name in columns_by_normalized_name.items():
         if strip_year_suffix(normalized_name) in candidate_roots:
             return original_name
+        if strip_year_prefix(normalized_name) in {
+            strip_year_prefix(candidate_root) for candidate_root in candidate_roots
+        }:
+            return original_name
     return None
 
 
@@ -408,3 +412,7 @@ def detect_source_year(filename: str, columns: Any) -> str | None:
 def strip_year_suffix(value: str) -> str:
     without_four_digit_year = re.sub(r"_?20\d{2}$", "", value)
     return re.sub(r"_?\d{2}$", "", without_four_digit_year)
+
+
+def strip_year_prefix(value: str) -> str:
+    return re.sub(r"^[pc]\d{2}_", "", value)
