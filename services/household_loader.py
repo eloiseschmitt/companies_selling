@@ -14,15 +14,10 @@ import pandas
 SOURCE_NAME = "INSEE Recensement de la population IRIS"
 QUALITY_EXACT_PERSONS = "exact_persons_75_plus_living_alone"
 QUALITY_EXACT_HOUSEHOLDS = "exact_households_reference_75_plus"
-QUALITY_ESTIMATED = "estimated"
 
 PERSONS_75_PLUS_LIVING_ALONE_DEFINITION = "persons aged 75+ living alone"
 HOUSEHOLDS_REFERENCE_75_PLUS_DEFINITION = (
     "one-person households whose reference person is aged 75+"
-)
-ESTIMATED_DEFINITION = (
-    "estimated persons aged 75+ living alone from available 75+ population and "
-    "living-alone rate/count variables"
 )
 
 IRIS_CODE_CANDIDATES = (
@@ -39,11 +34,17 @@ PERSONS_75_PLUS_LIVING_ALONE_CANDIDATES = (
     "population_75_plus_living_alone",
     "pop75p_seul",
     "pop_75p_seul",
+    "p22_pop75p_seul",
+    "p22_pop_75p_seul",
+    "c22_pop75p_seul",
+    "c22_pop_75p_seul",
     "p21_pop75p_seul",
     "p20_pop75p_seul",
     "p19_pop75p_seul",
     "p18_pop75p_seul",
     "p17_pop75p_seul",
+    "p22_pop75p_vivseul",
+    "c22_pop75p_vivseul",
     "p21_pop75p_vivseul",
     "p20_pop75p_vivseul",
     "p19_pop75p_vivseul",
@@ -53,7 +54,23 @@ ONE_PERSON_HOUSEHOLDS_REFERENCE_75_PLUS_CANDIDATES = (
     "households_one_person_reference_75_plus",
     "menages_1_personne_reference_75_plus",
     "menages_1pers_pr_75p",
+    "men_pseul75p",
+    "men_pseul_75p",
+    "menpseul75p",
+    "menpseul_75p",
     "men1p_75p",
+    "p22_men1p_75p",
+    "p22_men_1p_75p",
+    "p22_men_pseul75p",
+    "p22_men_pseul_75p",
+    "p22_menpseul75p",
+    "p22_menpseul_75p",
+    "c22_men1p_75p",
+    "c22_men_1p_75p",
+    "c22_men_pseul75p",
+    "c22_men_pseul_75p",
+    "c22_menpseul75p",
+    "c22_menpseul_75p",
     "p21_men1p_75p",
     "p20_men1p_75p",
     "p19_men1p_75p",
@@ -63,45 +80,6 @@ ONE_PERSON_HOUSEHOLDS_REFERENCE_75_PLUS_CANDIDATES = (
     "p20_men_pseul_75p",
     "p19_men_pseul_75p",
 )
-POPULATION_75_PLUS_CANDIDATES = (
-    "population_75_plus",
-    "pop75p",
-    "pop_75p",
-    "pop_75_plus",
-    "p21_pop75p",
-    "p20_pop75p",
-    "p19_pop75p",
-    "p18_pop75p",
-    "p17_pop75p",
-)
-LIVING_ALONE_RATE_75_PLUS_CANDIDATES = (
-    "living_alone_rate_75_plus",
-    "single_rate_75_plus",
-    "share_75_plus_living_alone",
-    "tx_pop75p_seul",
-    "pct_pop75p_seul",
-    "p21_tx_pop75p_seul",
-    "p20_tx_pop75p_seul",
-    "p19_tx_pop75p_seul",
-)
-POPULATION_LIVING_ALONE_CANDIDATES = (
-    "population_living_alone",
-    "persons_living_alone",
-    "pop_seul",
-    "pop_vivseul",
-    "p21_pop_seul",
-    "p20_pop_seul",
-    "p19_pop_seul",
-)
-POPULATION_TOTAL_CANDIDATES = (
-    "population_total",
-    "population",
-    "pop_total",
-    "p21_pop",
-    "p20_pop",
-    "p19_pop",
-)
-
 
 @dataclass(frozen=True)
 class HouseholdMetricDetection:
@@ -110,7 +88,6 @@ class HouseholdMetricDetection:
     metric_definition: str
     quality_flag: str
     source_year: str | None
-    estimation_denominator: str | None = None
 
 
 class HouseholdColumnError(RuntimeError):
@@ -147,7 +124,7 @@ def load_household_iris(file_path: Path) -> pandas.DataFrame:
 
 
 def extract_single_75_plus_by_iris(df: pandas.DataFrame) -> pandas.DataFrame:
-    """Extract or estimate older people living alone indicators by IRIS."""
+    """Extract a direct older people living alone indicator by IRIS."""
     detection = detect_metric_columns(df)
     count = compute_single_75_plus_count(df, detection)
     output = pandas.DataFrame(
@@ -196,46 +173,6 @@ def detect_metric_columns(df: pandas.DataFrame) -> HouseholdMetricDetection:
             source_year=detect_source_year("", df.columns),
         )
 
-    population_75_plus_column = find_column(
-        columns_by_normalized_name,
-        POPULATION_75_PLUS_CANDIDATES,
-    )
-    living_alone_rate_column = find_column(
-        columns_by_normalized_name,
-        LIVING_ALONE_RATE_75_PLUS_CANDIDATES,
-    )
-    if population_75_plus_column and living_alone_rate_column:
-        return HouseholdMetricDetection(
-            iris_code=iris_code,
-            value_columns=(population_75_plus_column, living_alone_rate_column),
-            metric_definition=ESTIMATED_DEFINITION,
-            quality_flag=QUALITY_ESTIMATED,
-            source_year=detect_source_year("", df.columns),
-            estimation_denominator="rate_75_plus",
-        )
-
-    living_alone_column = find_column(
-        columns_by_normalized_name,
-        POPULATION_LIVING_ALONE_CANDIDATES,
-    )
-    population_total_column = find_column(
-        columns_by_normalized_name,
-        POPULATION_TOTAL_CANDIDATES,
-    )
-    if population_75_plus_column and living_alone_column and population_total_column:
-        return HouseholdMetricDetection(
-            iris_code=iris_code,
-            value_columns=(
-                population_75_plus_column,
-                living_alone_column,
-                population_total_column,
-            ),
-            metric_definition=ESTIMATED_DEFINITION,
-            quality_flag=QUALITY_ESTIMATED,
-            source_year=detect_source_year("", df.columns),
-            estimation_denominator="overall_living_alone_share",
-        )
-
     raise household_metric_error(df.columns)
 
 
@@ -243,22 +180,7 @@ def compute_single_75_plus_count(
     df: pandas.DataFrame,
     detection: HouseholdMetricDetection,
 ) -> pandas.Series:
-    if detection.quality_flag in {QUALITY_EXACT_PERSONS, QUALITY_EXACT_HOUSEHOLDS}:
-        return df[detection.value_columns[0]].map(parse_number)
-
-    if detection.estimation_denominator == "rate_75_plus":
-        population_75_plus = df[detection.value_columns[0]].map(parse_number)
-        rate = df[detection.value_columns[1]].map(parse_number).map(normalize_rate)
-        return population_75_plus * rate
-
-    if detection.estimation_denominator == "overall_living_alone_share":
-        population_75_plus = df[detection.value_columns[0]].map(parse_number)
-        living_alone = df[detection.value_columns[1]].map(parse_number)
-        population_total = df[detection.value_columns[2]].map(parse_number)
-        share = living_alone / population_total.replace(0, pandas.NA)
-        return population_75_plus * share
-
-    return pandas.Series([pandas.NA] * len(df), index=df.index)
+    return df[detection.value_columns[0]].map(parse_number)
 
 
 def read_csv(path: Path) -> pandas.DataFrame:
@@ -301,10 +223,12 @@ def find_column(
             return exact
 
     candidate_roots = {
-        strip_year_suffix(normalize_column_name(item)) for item in candidates
+        strip_year_prefix(strip_year_suffix(normalize_column_name(item)))
+        for item in candidates
     }
     for normalized_name, original_name in columns_by_normalized_name.items():
-        if strip_year_suffix(normalized_name) in candidate_roots:
+        comparable_name = strip_year_prefix(strip_year_suffix(normalized_name))
+        if comparable_name in candidate_roots:
             return original_name
     return None
 
@@ -329,11 +253,10 @@ def household_metric_error(columns: Any) -> HouseholdColumnError:
         + ", ".join(PERSONS_75_PLUS_LIVING_ALONE_CANDIDATES),
         "one-person households reference 75+: "
         + ", ".join(ONE_PERSON_HOUSEHOLDS_REFERENCE_75_PLUS_CANDIDATES),
-        "estimation: population 75+ + living-alone rate 75+",
-        "estimation: population 75+ + population living alone + population total",
     )
     return HouseholdColumnError(
-        "Unable to detect a household indicator for people aged 75+ living alone. "
+        "Unable to detect a direct household indicator for people aged 75+ living "
+        "alone or one-person households whose reference person is aged 75+. "
         f"Candidate groups: {'; '.join(candidate_groups)}. "
         f"Available columns: {', '.join(available_columns)}"
     )
@@ -370,14 +293,6 @@ def parse_number(value: Any) -> float | None:
         return None
 
 
-def normalize_rate(value: float | None) -> float | None:
-    if value is None:
-        return None
-    if value > 1:
-        return value / 100
-    return value
-
-
 def detect_source_year(filename: str, columns: Any) -> str | None:
     values = [filename, *(str(column) for column in columns)]
     for value in values:
@@ -395,3 +310,7 @@ def detect_source_year(filename: str, columns: Any) -> str | None:
 def strip_year_suffix(value: str) -> str:
     without_four_digit_year = re.sub(r"_?20\d{2}$", "", value)
     return re.sub(r"_?\d{2}$", "", without_four_digit_year)
+
+
+def strip_year_prefix(value: str) -> str:
+    return re.sub(r"^[pc]\d{2}_", "", value)

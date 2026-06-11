@@ -21,6 +21,7 @@ from services.geography import (
     validate_sector_mapping,
 )
 from services.report_builder import DEFAULT_OUTPUT_DIR, build_sector_report
+from services.source_inspector import format_inspection, inspect_source
 
 app = FastAPI()
 
@@ -61,6 +62,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     add_export_iris_candidates_parser(subparsers)
     add_build_report_parser(subparsers)
     add_validate_mapping_parser(subparsers)
+    add_inspect_source_parser(subparsers)
     return parser.parse_args(argv)
 
 
@@ -133,6 +135,20 @@ def add_validate_mapping_parser(subparsers: argparse._SubParsersAction) -> None:
     add_common_options(parser)
 
 
+def add_inspect_source_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "inspect-source",
+        help="Inspect columns and preview rows from a local INSEE source file.",
+    )
+    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Enable verbose logs.",
+    )
+
+
 def add_source_url_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--income-source", help="Filosofi IRIS source URL or path.")
     parser.add_argument(
@@ -159,6 +175,8 @@ def run_command(args: argparse.Namespace) -> int:
         return command_build_report(args)
     if args.command == "validate-mapping":
         return command_validate_mapping(args)
+    if args.command == "inspect-source":
+        return command_inspect_source(args)
     raise ValueError(f"Unsupported command: {args.command}")
 
 
@@ -251,6 +269,11 @@ def command_validate_mapping(args: argparse.Namespace) -> int:
     iris_areas = load_iris_table(iris_source)
     validate_sector_mapping(mapping, iris_areas)
     logging.getLogger(__name__).info("Sector mapping is valid.")
+    return 0
+
+
+def command_inspect_source(args: argparse.Namespace) -> int:
+    print(format_inspection(inspect_source(args.source)))
     return 0
 
 

@@ -12,8 +12,8 @@ Sources prioritaires :
 
 - `INSEE Filosofi IRIS` : revenu disponible médian par unité de consommation.
 - `INSEE Recensement de la population, base infracommunale IRIS` : population par âge, notamment 75 ans et plus.
-- `INSEE Recensement de la population, ménages/familles IRIS` : personnes âgées vivant seules ou ménages d'une personne selon les variables disponibles.
-- Fichiers détaillés ou bases agrégées INSEE IRIS : recherche conservative d'un indicateur retraités anciennement cadres/professions intellectuelles supérieures.
+- `Couples - Familles - Ménages en 2022 - Recensement de la population - Base infracommunale IRIS` : personnes âgées vivant seules ou ménages d'une personne selon les variables disponibles.
+- Fichiers détaillés ou bases agrégées INSEE IRIS : recherche conservative de deux indicateurs séparés, `retired_count` et `csp_plus_15_plus_count`.
 - Table géographique IRIS : code IRIS, libellé IRIS, code commune, nom commune.
 
 Le code accepte des sources `CSV`, `ZIP` contenant un CSV, `XLS/XLSX` ou `Parquet` selon les loaders. Les URL officielles ne sont pas codées en dur : elles doivent être passées explicitement, afin d'éviter de figer une source incertaine ou obsolète.
@@ -130,6 +130,14 @@ La validation vérifie notamment que les IRIS mappés existent et appartiennent 
 
 ## Construire Et Relancer Le Rapport
 
+Pour diagnostiquer une source avant de l'utiliser dans le pipeline :
+
+```bash
+python -m app inspect-source --source data/raw/ma-source-insee.zip
+```
+
+La commande lit `CSV`, `XLS/XLSX` ou `ZIP` contenant ces formats. Elle affiche les fichiers internes du ZIP, les colonnes, les 5 premières lignes, les colonnes contenant des motifs utiles (`AGE`, `75`, `SEUL`, `MENAGE`, `CS`, `RETR`, `P22`, etc.), le nombre de lignes et le nombre de codes IRIS distincts.
+
 Commande type :
 
 ```bash
@@ -170,9 +178,11 @@ Le rapport secteur contient notamment :
 - `median_income_min`
 - `median_income_max`
 - `median_income_weighted`
+- `median_income_iris_values`
 - `population_75_plus`
 - `single_75_plus_count`
-- `retired_csp_plus_count`
+- `retired_count`
+- `csp_plus_15_plus_count`
 - `quality_notes`
 - `source_years`
 
@@ -180,8 +190,8 @@ Les loaders normalisent les données IRIS avant agrégation :
 
 - `services.income_loader` : revenu disponible médian Filosofi.
 - `services.population_loader` : population de 75 ans et plus.
-- `services.household_loader` : personnes âgées vivant seules ou ménages d'une personne selon disponibilité.
-- `services.retired_csp_loader` : indicateur direct de retraités anciennement CSP+ seulement si disponible.
+- `services.household_loader` : personnes âgées vivant seules ou ménages d'une personne si une variable directe 75+ existe.
+- `services.retired_csp_loader` : retraités totaux et CSP+ 15 ans et plus comme deux marges séparées.
 - `services.sector_aggregator` : agrégation au niveau secteur.
 
 ## Limites Statistiques
@@ -195,6 +205,7 @@ Il ne faut pas calculer une moyenne simple des médianes IRIS pour obtenir un re
 Le pipeline applique donc cette règle :
 
 - il fournit toujours `median_income_min` et `median_income_max` pour afficher la fourchette des IRIS du secteur ;
+- il peut exporter `median_income_iris_values` pour auditer les valeurs IRIS individuelles ;
 - il calcule `median_income_weighted` uniquement si une colonne de pondération fiable est fournie ;
 - même pondérée, cette valeur reste une approximation à partir de médianes IRIS, pas une vraie médiane recalculée sur les ménages/personnes du secteur.
 
@@ -228,15 +239,16 @@ Ces deux indicateurs sont proches mais ne doivent pas être confondus.
 
 Le rapport garde donc une colonne `metric_definition` au niveau IRIS et des notes de qualité au niveau secteur. Quand le calcul agrège des ménages d'une personne plutôt que des personnes vivant seules, `quality_notes` le signale.
 
-### Retraités Anciennement CSP+
+### Retraités Et CSP+
 
 L'indicateur `retraités anciennement cadres / professions intellectuelles supérieures` n'est pas systématiquement disponible directement à l'échelle IRIS dans les fichiers standards.
 
 Le pipeline est volontairement conservateur :
 
-- si une variable directe fiable existe, elle est utilisée ;
-- si seule une combinaison fragile est possible, par exemple retraités totaux d'un côté et CSP+ d'un autre, aucune estimation n'est produite ;
-- la valeur reste vide avec `quality_flag = not_available_directly_at_iris_level`.
+- `retired_count` est produit si une colonne de retraités est disponible ;
+- `csp_plus_15_plus_count` est produit si une colonne CSP+ 15 ans et plus est disponible ;
+- ces deux colonnes sont agrégées séparément ;
+- elles ne sont jamais fusionnées pour fabriquer un indicateur `retraités CSP+`, car cela mélangerait deux marges statistiques différentes.
 
 ## Qualité Et Tests
 

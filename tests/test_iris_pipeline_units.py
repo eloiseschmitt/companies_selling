@@ -135,6 +135,10 @@ class IrisPipelineDataFrameUnitsTest(unittest.TestCase):
         self.assertEqual(output.loc[0, "single_75_plus_count"], 10.0)
         self.assertEqual(output.loc[0, "median_income_min"], 20000.0)
         self.assertEqual(output.loc[0, "median_income_max"], 30000.0)
+        self.assertEqual(
+            output.loc[0, "median_income_iris_values"],
+            "IRIS1:30000; IRIS2:20000",
+        )
         self.assertIsNone(output.loc[0, "median_income_weighted"])
         self.assertIn("not averaged", output.loc[0, "quality_notes"])
 

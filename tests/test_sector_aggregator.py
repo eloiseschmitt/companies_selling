@@ -44,8 +44,12 @@ class SectorAggregatorTest(unittest.TestCase):
         retired_df = pandas.DataFrame(
             {
                 "iris_code": ["IRIS1", "IRIS2"],
-                "retired_csp_plus_count": [2, 3],
-                "quality_flag": ["direct_count", "direct_count"],
+                "retired_count": [20, 30],
+                "csp_plus_15_plus_count": [2, 3],
+                "quality_flag": [
+                    "retired_and_csp_plus_available",
+                    "retired_and_csp_plus_available",
+                ],
                 "source_year": ["2021", "2021"],
             }
         )
@@ -64,9 +68,14 @@ class SectorAggregatorTest(unittest.TestCase):
         self.assertEqual(output.loc[0, "median_income_min"], 20000.0)
         self.assertEqual(output.loc[0, "median_income_max"], 30000.0)
         self.assertEqual(output.loc[0, "median_income_weighted"], 22500.0)
+        self.assertEqual(
+            output.loc[0, "median_income_iris_values"],
+            "IRIS1:30000; IRIS2:20000",
+        )
         self.assertEqual(output.loc[0, "population_75_plus"], 40.0)
         self.assertEqual(output.loc[0, "single_75_plus_count"], 10.0)
-        self.assertEqual(output.loc[0, "retired_csp_plus_count"], 5.0)
+        self.assertEqual(output.loc[0, "retired_count"], 50.0)
+        self.assertEqual(output.loc[0, "csp_plus_15_plus_count"], 5.0)
         self.assertEqual(output.loc[0, "source_years"], "2021")
 
     def test_income_without_weight_reports_range_only(self) -> None:
@@ -82,6 +91,10 @@ class SectorAggregatorTest(unittest.TestCase):
 
         self.assertEqual(output.loc[0, "median_income_min"], 20000.0)
         self.assertEqual(output.loc[0, "median_income_max"], 30000.0)
+        self.assertEqual(
+            output.loc[0, "median_income_iris_values"],
+            "IRIS1:30000; IRIS2:20000",
+        )
         self.assertIsNone(output.loc[0, "median_income_weighted"])
         self.assertIn("not averaged", output.loc[0, "quality_notes"])
 
@@ -100,37 +113,37 @@ class SectorAggregatorTest(unittest.TestCase):
         self.assertIsNone(output.loc[0, "single_75_plus_count"])
         self.assertIn("non-summable quality flags", output.loc[0, "quality_notes"])
 
-    def test_retired_csp_not_aggregated_when_unavailable(self) -> None:
+    def test_retired_and_csp_marginals_are_aggregated_separately(self) -> None:
         output = aggregate_sector_indicators(
             {"Sector A": ("IRIS1",)},
             retired_csp_df=pandas.DataFrame(
                 {
                     "iris_code": ["IRIS1"],
-                    "retired_csp_plus_count": [None],
+                    "retired_count": [100],
+                    "csp_plus_15_plus_count": [25],
                     "quality_flag": ["not_available_directly_at_iris_level"],
                 }
             ),
         )
 
-        self.assertIsNone(output.loc[0, "retired_csp_plus_count"])
-        self.assertIn("not directly reliable", output.loc[0, "quality_notes"])
+        self.assertEqual(output.loc[0, "retired_count"], 100.0)
+        self.assertEqual(output.loc[0, "csp_plus_15_plus_count"], 25.0)
+        self.assertIn("not equivalent", output.loc[0, "quality_notes"])
 
-    def test_retired_csp_count_from_share_requires_weight(self) -> None:
+    def test_retired_and_csp_marginals_unavailable_when_columns_missing(self) -> None:
         output = aggregate_sector_indicators(
-            {"Sector A": ("IRIS1", "IRIS2")},
+            {"Sector A": ("IRIS1",)},
             retired_csp_df=pandas.DataFrame(
                 {
-                    "iris_code": ["IRIS1", "IRIS2"],
-                    "retired_csp_plus_share": ["10", "0.2"],
-                    "retired_weight": [100, 50],
-                    "quality_flag": ["direct_share", "direct_share"],
+                    "iris_code": ["IRIS1"],
+                    "quality_flag": ["not_available_directly_at_iris_level"],
                 }
             ),
-            retired_weight_column="retired_weight",
         )
 
-        self.assertEqual(output.loc[0, "retired_csp_plus_count"], 20.0)
-        self.assertIn("derived from direct share", output.loc[0, "quality_notes"])
+        self.assertIsNone(output.loc[0, "retired_count"])
+        self.assertIsNone(output.loc[0, "csp_plus_15_plus_count"])
+        self.assertIn("retired_count unavailable", output.loc[0, "quality_notes"])
 
 
 if __name__ == "__main__":

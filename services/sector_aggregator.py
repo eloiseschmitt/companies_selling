@@ -10,12 +10,6 @@ import pandas
 SUMMABLE_SINGLE_75_PLUS_FLAGS = {
     "exact_persons_75_plus_living_alone",
     "exact_households_reference_75_plus",
-    "estimated",
-}
-RELIABLE_RETIRED_CSP_FLAGS = {
-    "direct_count",
-    "direct_share",
-    "direct_count_and_share",
 }
 
 
@@ -45,7 +39,7 @@ def aggregate_sector_indicators(
         household_rows = select_iris_rows(indexed_household, normalized_iris_codes)
         retired_rows = select_iris_rows(indexed_retired, normalized_iris_codes)
 
-        median_min, median_max, median_weighted = aggregate_income(
+        median_min, median_max, median_weighted, median_values = aggregate_income(
             income_rows,
             income_weight_column,
             quality_notes,
@@ -60,9 +54,8 @@ def aggregate_sector_indicators(
             household_rows,
             quality_notes,
         )
-        retired_csp_plus_count = aggregate_retired_csp(
+        retired_count, csp_plus_15_plus_count = aggregate_retired_and_csp(
             retired_rows,
-            retired_weight_column,
             quality_notes,
         )
 
@@ -78,9 +71,11 @@ def aggregate_sector_indicators(
                 "median_income_min": median_min,
                 "median_income_max": median_max,
                 "median_income_weighted": median_weighted,
+                "median_income_iris_values": median_values,
                 "population_75_plus": population_75_plus,
                 "single_75_plus_count": single_75_plus_count,
-                "retired_csp_plus_count": retired_csp_plus_count,
+                "retired_count": retired_count,
+                "csp_plus_15_plus_count": csp_plus_15_plus_count,
                 "quality_notes": " | ".join(quality_notes),
                 "source_years": ",".join(sorted(source_years)),
             }
@@ -94,9 +89,11 @@ def aggregate_sector_indicators(
             "median_income_min",
             "median_income_max",
             "median_income_weighted",
+            "median_income_iris_values",
             "population_75_plus",
             "single_75_plus_count",
-            "retired_csp_plus_count",
+            "retired_count",
+            "csp_plus_15_plus_count",
             "quality_notes",
             "source_years",
         ),
@@ -107,18 +104,19 @@ def aggregate_income(
     rows: pandas.DataFrame,
     income_weight_column: str | None,
     quality_notes: list[str],
-) -> tuple[float | None, float | None, float | None]:
+) -> tuple[float | None, float | None, float | None, str | None]:
     if rows.empty or "median_disposable_income" not in rows.columns:
         quality_notes.append("median income unavailable for configured IRIS")
-        return None, None, None
+        return None, None, None, None
 
     incomes = rows["median_disposable_income"].map(parse_number).dropna()
     if incomes.empty:
         quality_notes.append("median income values are empty for configured IRIS")
-        return None, None, None
+        return None, None, None, None
 
     median_min = float(incomes.min())
     median_max = float(incomes.max())
+    median_values = format_income_iris_values(rows)
     weighted_income = None
     if income_weight_column and income_weight_column in rows.columns:
         weighted_income = weighted_average(
@@ -139,7 +137,7 @@ def aggregate_income(
             "median income is not averaged; IRIS median range is reported because no "
             "reliable weight column was provided"
         )
-    return median_min, median_max, weighted_income
+    return median_min, median_max, weighted_income, median_values
 
 
 def aggregate_single_75_plus(
@@ -163,8 +161,6 @@ def aggregate_single_75_plus(
         )
         return None
 
-    if "estimated" in quality_flags:
-        quality_notes.append("single_75_plus_count includes estimated IRIS values")
     if "exact_households_reference_75_plus" in quality_flags:
         quality_notes.append(
             "single_75_plus_count includes one-person households by reference person, "
@@ -173,53 +169,46 @@ def aggregate_single_75_plus(
     return sum_numeric_series(rows["single_75_plus_count"])
 
 
-def aggregate_retired_csp(
+def aggregate_retired_and_csp(
     rows: pandas.DataFrame,
-    retired_weight_column: str | None,
     quality_notes: list[str],
-) -> float | None:
+) -> tuple[float | None, float | None]:
     if rows.empty:
-        quality_notes.append("retired_csp_plus unavailable for configured IRIS")
-        return None
-
-    if "quality_flag" not in rows.columns:
-        quality_notes.append("retired_csp_plus not aggregated: missing quality_flag")
-        return None
-
-    quality_flags = {str(value) for value in rows["quality_flag"].dropna().unique()}
-    unsupported = quality_flags - RELIABLE_RETIRED_CSP_FLAGS
-    if unsupported:
         quality_notes.append(
-            "retired_csp_plus not aggregated because source is not directly reliable: "
-            + ",".join(sorted(unsupported))
+            "retired/CSP marginal indicators unavailable for configured IRIS"
         )
-        return None
+        return None, None
 
-    if "retired_csp_plus_count" in rows.columns:
-        count = sum_numeric_series(rows["retired_csp_plus_count"])
-        if count is not None:
-            return count
-
-    if (
-        retired_weight_column
-        and retired_weight_column in rows.columns
-        and "retired_csp_plus_share" in rows.columns
-    ):
-        count = weighted_count_from_share(
-            rows,
-            share_column="retired_csp_plus_share",
-            weight_column=retired_weight_column,
-        )
-        if count is not None:
-            quality_notes.append(
-                "retired_csp_plus_count derived from direct share and reliable weight"
-            )
-            return count
-
-    quality_notes.append(
-        "retired_csp_plus not aggregated: no reliable direct count or share weight"
+    retired_count = (
+        sum_numeric_series(rows["retired_count"])
+        if "retired_count" in rows
+        else None
     )
-    return None
+    csp_plus_count = (
+        sum_numeric_series(rows["csp_plus_15_plus_count"])
+        if "csp_plus_15_plus_count" in rows
+        else None
+    )
+    quality_notes.append(
+        "retired_count and csp_plus_15_plus_count are aggregated separately; this "
+        "is not equivalent to retired formerly CSP+ people"
+    )
+    if retired_count is None:
+        quality_notes.append("retired_count unavailable for configured IRIS")
+    if csp_plus_count is None:
+        quality_notes.append("csp_plus_15_plus_count unavailable for configured IRIS")
+    return retired_count, csp_plus_count
+
+
+def format_income_iris_values(rows: pandas.DataFrame) -> str | None:
+    values: list[str] = []
+    for _, row in rows.iterrows():
+        income = parse_number(row.get("median_disposable_income"))
+        if income is None:
+            continue
+        iris_code = normalize_iris_code(row.get("iris_code"))
+        values.append(f"{iris_code}:{income:g}")
+    return "; ".join(values) if values else None
 
 
 def sum_column(

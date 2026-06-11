@@ -148,7 +148,7 @@ class AppCliTest(unittest.TestCase):
                 encoding="utf-8",
             )
             retired_path.write_text(
-                "iris;p21_retraites_anciens_cadres\n330690101;3\n",
+                "iris;p21_pop15p_retraites;p21_pop15p_cs3\n330690101;30;3\n",
                 encoding="utf-8",
             )
             manifest_path.write_text(
@@ -202,7 +202,7 @@ class AppCliTest(unittest.TestCase):
                     "iris;p21_pop75p_seul\n330690101;12\n"
                 ),
                 "insee_rp_iris_retired_csp_2021.csv": (
-                    "iris;p21_retraites_anciens_cadres\n330690101;3\n"
+                    "iris;p21_pop15p_retraites;p21_pop15p_cs3\n330690101;30;3\n"
                 ),
             }
             manifest_sources = {}
@@ -242,6 +242,19 @@ class AppCliTest(unittest.TestCase):
                 encoding="utf-8-sig"
             )
             self.assertIn("Le Bouscat", report_content)
+
+    def test_inspect_source_prints_columns_and_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            source_path = tmp_path / "source.csv"
+            source_path.write_text(
+                "IRIS;P22_POP75P;MENAGE\n330690101;40;10\n",
+                encoding="utf-8",
+            )
+
+            result = main(["inspect-source", "--source", str(source_path)])
+
+        self.assertEqual(result, 0)
 
 
 def write_mapping(path: Path, values: dict[str, list[str]]) -> Path:

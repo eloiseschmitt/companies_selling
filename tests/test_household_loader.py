@@ -76,7 +76,7 @@ class HouseholdLoaderTest(unittest.TestCase):
             "exact_households_reference_75_plus",
         )
 
-    def test_extract_estimates_from_75_plus_population_and_rate(self) -> None:
+    def test_extract_raises_instead_of_estimating_from_75_plus_rate(self) -> None:
         df = pandas.DataFrame(
             {
                 "iris": ["330630101"],
@@ -85,13 +85,10 @@ class HouseholdLoaderTest(unittest.TestCase):
             }
         )
 
-        output = extract_single_75_plus_by_iris(df)
+        with self.assertRaises(HouseholdColumnError):
+            extract_single_75_plus_by_iris(df)
 
-        self.assertEqual(output.loc[0, "single_75_plus_count"], 20.0)
-        self.assertEqual(output.loc[0, "quality_flag"], "estimated")
-        self.assertIn("estimated", output.loc[0, "metric_definition"])
-
-    def test_extract_estimates_from_overall_living_alone_share(self) -> None:
+    def test_extract_raises_instead_of_estimating_from_overall_share(self) -> None:
         df = pandas.DataFrame(
             {
                 "iris": ["330630101"],
@@ -101,10 +98,24 @@ class HouseholdLoaderTest(unittest.TestCase):
             }
         )
 
+        with self.assertRaises(HouseholdColumnError):
+            extract_single_75_plus_by_iris(df)
+
+    def test_extract_detects_2022_household_reference_75_plus_column(self) -> None:
+        df = pandas.DataFrame(
+            {
+                "IRIS": ["330630101"],
+                "C22_MENPSEUL75P": ["18"],
+            }
+        )
+
         output = extract_single_75_plus_by_iris(df)
 
-        self.assertEqual(output.loc[0, "single_75_plus_count"], 20.0)
-        self.assertEqual(output.loc[0, "quality_flag"], "estimated")
+        self.assertEqual(output.loc[0, "single_75_plus_count"], 18.0)
+        self.assertEqual(
+            output.loc[0, "quality_flag"],
+            "exact_households_reference_75_plus",
+        )
 
     def test_load_household_zip(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -121,7 +132,7 @@ class HouseholdLoaderTest(unittest.TestCase):
         self.assertEqual(output.loc[0, "single_75_plus_count"], 42.0)
         self.assertEqual(output.loc[0, "source_year"], "2019")
 
-    def test_extract_raises_when_no_indicator_or_estimation_is_available(self) -> None:
+    def test_extract_raises_when_no_direct_indicator_is_available(self) -> None:
         df = pandas.DataFrame(
             {
                 "iris": ["330630101"],
