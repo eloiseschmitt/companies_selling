@@ -15,3 +15,4 @@ downloads/
 /.cache/insee_sirene_unites_legales.json
 /independants_bordeaux_metropole.csv
 /data/raw/
+/data/output/

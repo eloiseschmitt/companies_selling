@@ -1,0 +1,14 @@
+# Manual mapping from business sectors to validated INSEE IRIS codes.
+# Fill these lists after reviewing data/output/iris_candidates.csv.
+# Do not infer a neighborhood perimeter without human validation.
+sectors:
+  Bordeaux Caudéran: []
+  Bordeaux Fondaudège: []
+  Bordeaux Chartrons: []
+  Le Bouscat: []
+  Bruges: []
+  Mérignac centre: []
+  Saint-Médard-en-Jalles: []
+  Talence: []
+  Pessac centre: []
+  Bègles secteur résidentiel: []

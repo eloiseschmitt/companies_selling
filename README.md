@@ -461,6 +461,7 @@ Exemples :
 - `generate_companies_html.py` : génération de `companies.html` en statique
 - `scripts/export_bordeaux_independants.py` : export CSV des entrepreneurs individuels ciblés depuis l'API SIRENE
 - `scripts/extract_bordeaux_iris_indicators.py` : extraction d'indicateurs INSEE IRIS pour des secteurs métier de Bordeaux Métropole
+- `scripts/export_iris_candidates.py` : export des IRIS des communes concernées pour préparer le mapping manuel des secteurs
 
 ## Services
 
@@ -469,6 +470,7 @@ Exemples :
 - `services/insee_sirene.py` : client HTTP pour l'API SIRENE INSEE v3.11
 - `services/insee_sirene_mapping.py` : mapping des réponses SIRENE vers les lignes CSV consolidées
 - `services/data_sources.py` : téléchargement des sources externes, stockage dans `data/raw/` et maintenance du manifeste `data/source_manifest.json`
+- `services/geography.py` : chargement de la table géographique IRIS et validation du mapping manuel secteur -> IRIS
 - `services/insee_iris_indicators.py` : chargement, calcul et persistance SQLite des indicateurs INSEE IRIS
 
 ## Indicateurs INSEE IRIS Bordeaux Métropole
@@ -481,6 +483,23 @@ Le script `scripts.extract_bordeaux_iris_indicators` produit un tableau d'indica
 - retraités CSP+, uniquement en approximation si les colonnes nécessaires sont disponibles.
 
 Le périmètre secteur -> IRIS doit être renseigné explicitement dans un fichier JSON. Le modèle fourni est `config/bordeaux_iris_sectors.example.json`. Les listes `iris_codes` sont volontairement vides : le script refuse de calculer un secteur sans IRIS validés afin de ne pas inventer de périmètre statistique.
+
+Un mapping manuel YAML est aussi prévu dans `config/sector_iris_mapping.yml` pour documenter l'association secteur métier -> codes IRIS validés. Ce fichier doit être rempli après revue humaine ; le code ne déduit jamais automatiquement les IRIS d'un quartier.
+
+Pour aider à remplir ce mapping, exporter tous les IRIS des communes concernées :
+
+```bash
+python -m scripts.export_iris_candidates \
+  --iris-source path-to-iris-geography.csv \
+  --output data/output/iris_candidates.csv
+```
+
+La table IRIS source doit contenir au minimum :
+
+- code IRIS ;
+- libellé IRIS ;
+- code commune ;
+- nom commune.
 
 Exemple d'exécution avec des fichiers INSEE CSV ou ZIP locaux ou distants :
 
