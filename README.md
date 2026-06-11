@@ -468,6 +468,7 @@ Exemples :
 - `services/inpi_annual_accounts.py` : client HTTP minimal pour l'API INPI/RNE des comptes annuels
 - `services/insee_sirene.py` : client HTTP pour l'API SIRENE INSEE v3.11
 - `services/insee_sirene_mapping.py` : mapping des réponses SIRENE vers les lignes CSV consolidées
+- `services/data_sources.py` : téléchargement des sources externes, stockage dans `data/raw/` et maintenance du manifeste `data/source_manifest.json`
 - `services/insee_iris_indicators.py` : chargement, calcul et persistance SQLite des indicateurs INSEE IRIS
 
 ## Indicateurs INSEE IRIS Bordeaux Métropole
@@ -492,14 +493,19 @@ python -m scripts.extract_bordeaux_iris_indicators \
   --population-vintage 2021 \
   --household-source path-or-url-to-rp-iris-households.zip \
   --household-vintage 2021 \
+  --raw-dir data/raw \
+  --manifest data/source_manifest.json \
   --output bordeaux_iris_indicators.csv \
   --db companies.db
 ```
 
 Le script :
 
-- accepte des sources CSV ou ZIP contenant un CSV ;
-- télécharge les URL dans `.cache/insee_iris/` et réutilise le cache local ;
+- accepte des sources CSV, XLSX, ZIP ou Parquet au niveau du registre des sources ;
+- lit actuellement les sources tabulaires CSV ou ZIP contenant un CSV pour le calcul IRIS ;
+- télécharge les URL dans `data/raw/` et réutilise le fichier local déjà présent ;
+- retélécharge une source distante si l'option `--force-refresh` est utilisée ;
+- maintient `data/source_manifest.json` avec le nom du jeu de données, l'URL, la date de téléchargement, le millésime détecté ou fourni, le fichier local et son hash SHA256 ;
 - écrit les résultats dans `bordeaux_iris_indicators.csv` ;
 - persiste les mêmes résultats dans la table SQLite `insee_iris_indicators` ;
 - conserve pour chaque indicateur la source, le millésime, la qualité du calcul et la méthode.
