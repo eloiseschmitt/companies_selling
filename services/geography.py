@@ -105,10 +105,10 @@ def load_iris_table(path: Path) -> list[IrisArea]:
     for row in rows:
         iris_code = normalize_code(row.get(iris_code_column))
         commune_code = normalize_code(row.get(commune_code_column))
-        if (
-            normalize_column_name(iris_code) == normalize_column_name(iris_code_column)
-            or normalize_column_name(commune_code)
-            == normalize_column_name(commune_code_column)
+        if normalize_column_name(iris_code) == normalize_column_name(
+            iris_code_column
+        ) or normalize_column_name(commune_code) == normalize_column_name(
+            commune_code_column
         ):
             continue
         if not iris_code or not commune_code:
@@ -208,6 +208,61 @@ def export_iris_candidates(
             )
 
 
+def update_sector_mapping_from_candidates(
+    candidates_path: Path,
+    mapping_path: Path,
+) -> dict[str, tuple[str, ...]]:
+    """Update sector mapping YAML from a reviewed iris_candidates.csv file."""
+    mapping = {
+        sector: list(codes)
+        for sector, codes in load_sector_iris_mapping(mapping_path).items()
+    }
+    rows = read_csv_file_rows(candidates_path)
+
+    for row in rows:
+        iris_code = normalize_code(row.get("iris_code"))
+        if not iris_code:
+            continue
+        for sector in parse_candidate_sectors(row.get("candidate_sectors", "")):
+            if sector not in mapping:
+                raise SectorMappingError(
+                    f"Unknown sector {sector!r} in {candidates_path}."
+                )
+            if iris_code not in mapping[sector]:
+                mapping[sector].append(iris_code)
+
+    normalized_mapping = {
+        sector: tuple(sorted(codes)) for sector, codes in mapping.items()
+    }
+    write_sector_iris_mapping(mapping_path, normalized_mapping)
+    return normalized_mapping
+
+
+def parse_candidate_sectors(value: str) -> list[str]:
+    return [sector.strip() for sector in value.split(";") if sector.strip()]
+
+
+def write_sector_iris_mapping(
+    mapping_path: Path,
+    mapping: Mapping[str, Sequence[str]],
+) -> None:
+    validate_sector_names(mapping)
+    lines = [
+        "# Manual mapping from business sectors to validated INSEE IRIS codes.",
+        "# Generated or updated from data/output/iris_candidates.csv.",
+        "# Review the mapping before using it for statistical reporting.",
+        "sectors:",
+    ]
+    for sector in SECTOR_NAMES:
+        iris_codes = tuple(mapping.get(sector, ()))
+        if not iris_codes:
+            lines.append(f"  {sector}: []")
+            continue
+        lines.append(f"  {sector}:")
+        lines.extend(f"    - {iris_code}" for iris_code in iris_codes)
+    mapping_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def build_sectors_by_commune() -> dict[str, tuple[str, ...]]:
     sectors_by_commune: dict[str, list[str]] = {}
     for sector, commune_code in COMMUNE_CODES_BY_SECTOR.items():
@@ -294,9 +349,7 @@ def read_rows_from_zip(path: Path) -> list[dict[str, str]]:
             return parse_csv_content(content)
 
         excel_names = [
-            name
-            for name in names
-            if name.lower().endswith((".xlsx", ".xls"))
+            name for name in names if name.lower().endswith((".xlsx", ".xls"))
         ]
         if excel_names:
             with archive.open(excel_names[0]) as excel_file:

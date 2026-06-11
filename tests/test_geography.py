@@ -15,6 +15,7 @@ from services.geography import (
     export_iris_candidates,
     load_iris_table,
     load_sector_iris_mapping,
+    update_sector_mapping_from_candidates,
     validate_sector_mapping,
 )
 
@@ -98,6 +99,44 @@ class GeographyTest(unittest.TestCase):
 
         self.assertEqual(set(mapping), set(SECTOR_NAMES))
         self.assertEqual(mapping["Bordeaux Caudéran"], ())
+
+    def test_update_sector_mapping_from_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            mapping_path = tmp_path / "mapping.yml"
+            candidates_path = tmp_path / "iris_candidates.csv"
+            mapping_path.write_text(
+                "sectors:\n"
+                "  Bordeaux Caudéran:\n"
+                "    - 330630101\n"
+                "  Bordeaux Fondaudège: []\n"
+                "  Bordeaux Chartrons: []\n"
+                "  Le Bouscat: []\n"
+                "  Bruges: []\n"
+                "  Mérignac centre: []\n"
+                "  Saint-Médard-en-Jalles: []\n"
+                "  Talence: []\n"
+                "  Pessac centre: []\n"
+                "  Bègles secteur résidentiel: []\n",
+                encoding="utf-8",
+            )
+            candidates_path.write_text(
+                "commune_code,commune_name,iris_code,iris_label,candidate_sectors\n"
+                "33063,Bordeaux,330630101,Le Lac 1,"
+                "Bordeaux Caudéran; Bordeaux Fondaudège; Bordeaux Chartrons\n",
+                encoding="utf-8",
+            )
+
+            mapping = update_sector_mapping_from_candidates(
+                candidates_path,
+                mapping_path,
+            )
+
+            self.assertEqual(mapping["Bordeaux Caudéran"], ("330630101",))
+            self.assertEqual(mapping["Bordeaux Fondaudège"], ("330630101",))
+            self.assertEqual(mapping["Bordeaux Chartrons"], ("330630101",))
+            written_mapping = load_sector_iris_mapping(mapping_path)
+            self.assertEqual(written_mapping["Bordeaux Chartrons"], ("330630101",))
 
     def test_validate_sector_mapping_rejects_wrong_commune(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
