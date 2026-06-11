@@ -475,6 +475,7 @@ Exemples :
 - `services/population_loader.py` : chargement des fichiers de recensement IRIS et calcul de la population de 75 ans et plus
 - `services/household_loader.py` : chargement des fichiers ménages/recensement IRIS et extraction des indicateurs 75 ans et plus vivant seuls
 - `services/retired_csp_loader.py` : recherche conservatrice d'un indicateur retraités anciennement cadres/professions intellectuelles supérieures à l'échelle IRIS
+- `services/sector_aggregator.py` : agrégation des indicateurs IRIS au niveau des secteurs définis manuellement
 - `services/insee_iris_indicators.py` : chargement, calcul et persistance SQLite des indicateurs INSEE IRIS
 
 ## Indicateurs INSEE IRIS Bordeaux Métropole
@@ -534,6 +535,13 @@ Le module `services.household_loader` extrait les indicateurs de personnes âgé
 La sortie inclut toujours `metric_definition` pour distinguer les personnes vivant seules des ménages d'une personne, et `quality_flag` pour signaler les valeurs exactes ou estimées.
 
 Le module `services.retired_csp_loader` recherche uniquement des variables directes de retraités anciennement cadres ou professions intellectuelles supérieures. Si aucune variable fiable n'est présente dans le fichier IRIS, les valeurs restent vides et `quality_flag` vaut `not_available_directly_at_iris_level`. Le module ne fabrique pas d'estimation à partir de variables séparées comme retraités totaux et CSP+ actifs.
+
+Le module `services.sector_aggregator` agrège les tables IRIS normalisées au niveau des secteurs de `config/sector_iris_mapping.yml` :
+
+- `population_75_plus` est sommée ;
+- `single_75_plus_count` est sommée uniquement si le `quality_flag` indique un indicateur sommable ;
+- le revenu médian n'est jamais moyenné simplement : le module retourne la fourchette min/max des médianes IRIS et une moyenne pondérée seulement si une colonne de poids fiable est fournie ;
+- `retired_csp_plus_count` est agrégé uniquement quand la source est directe et fiable.
 
 Exemple d'exécution avec des fichiers INSEE CSV ou ZIP locaux ou distants :
 
