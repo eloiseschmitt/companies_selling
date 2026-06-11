@@ -473,6 +473,7 @@ Exemples :
 - `services/geography.py` : chargement de la table géographique IRIS et validation du mapping manuel secteur -> IRIS
 - `services/income_loader.py` : chargement des fichiers Filosofi IRIS et extraction du revenu disponible médian par unité de consommation
 - `services/population_loader.py` : chargement des fichiers de recensement IRIS et calcul de la population de 75 ans et plus
+- `services/household_loader.py` : chargement des fichiers ménages/recensement IRIS et extraction des indicateurs 75 ans et plus vivant seuls
 - `services/insee_iris_indicators.py` : chargement, calcul et persistance SQLite des indicateurs INSEE IRIS
 
 ## Indicateurs INSEE IRIS Bordeaux Métropole
@@ -522,6 +523,14 @@ Le module `services.population_loader` charge les fichiers de recensement IRIS e
 - `quality_flag`.
 
 `quality_flag` vaut `exact` quand les colonnes disponibles permettent un calcul précis de 75 ans et plus, `approximate_age_bands` quand seules des tranches plus larges sont disponibles.
+
+Le module `services.household_loader` extrait les indicateurs de personnes âgées vivant seules selon une priorité stricte :
+
+- personnes de 75 ans et plus vivant seules, si disponible directement ;
+- ménages d'une personne dont la personne de référence a 75 ans ou plus, si disponible ;
+- estimation documentée à partir des variables disponibles.
+
+La sortie inclut toujours `metric_definition` pour distinguer les personnes vivant seules des ménages d'une personne, et `quality_flag` pour signaler les valeurs exactes ou estimées.
 
 Exemple d'exécution avec des fichiers INSEE CSV ou ZIP locaux ou distants :
 
