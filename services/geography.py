@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import csv
 import logging
+import unicodedata
+import zipfile
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
+import pandas
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +42,21 @@ COMMUNE_CODES_BY_SECTOR = {
 
 IRIS_CODE_COLUMNS = ("iris", "code_iris", "codeiris", "iris_code", "cod_iris")
 IRIS_LABEL_COLUMNS = ("libiris", "lib_iris", "iris_label", "nom_iris", "libelle_iris")
-COMMUNE_CODE_COLUMNS = ("com", "code_commune", "commune_code", "depcom", "codgeo")
-COMMUNE_NAME_COLUMNS = ("libcom", "nom_commune", "commune_name", "libelle_commune")
+COMMUNE_CODE_COLUMNS = (
+    "com",
+    "code_commune",
+    "commune_code",
+    "depcom",
+    "codgeo",
+    "code_departement_commune",
+)
+COMMUNE_NAME_COLUMNS = (
+    "libcom",
+    "nom_commune",
+    "commune_name",
+    "libelle_commune",
+    "libelle_de_commune",
+)
 
 
 @dataclass(frozen=True)
@@ -88,6 +105,12 @@ def load_iris_table(path: Path) -> list[IrisArea]:
     for row in rows:
         iris_code = normalize_code(row.get(iris_code_column))
         commune_code = normalize_code(row.get(commune_code_column))
+        if (
+            normalize_column_name(iris_code) == normalize_column_name(iris_code_column)
+            or normalize_column_name(commune_code)
+            == normalize_column_name(commune_code_column)
+        ):
+            continue
         if not iris_code or not commune_code:
             continue
         iris_areas.append(
@@ -254,7 +277,77 @@ def validate_sector_names(mapping: Mapping[str, Sequence[str]]) -> None:
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
-    content = path.read_text(encoding="utf-8-sig")
+    suffix = path.suffix.lower()
+    if suffix == ".zip":
+        return read_rows_from_zip(path)
+    if suffix in {".xlsx", ".xls"}:
+        return read_excel_rows(path)
+    return read_csv_file_rows(path)
+
+
+def read_rows_from_zip(path: Path) -> list[dict[str, str]]:
+    with zipfile.ZipFile(path) as archive:
+        names = archive.namelist()
+        csv_names = [name for name in names if name.lower().endswith(".csv")]
+        if csv_names:
+            content = decode_text(archive.read(csv_names[0]))
+            return parse_csv_content(content)
+
+        excel_names = [
+            name
+            for name in names
+            if name.lower().endswith((".xlsx", ".xls"))
+        ]
+        if excel_names:
+            with archive.open(excel_names[0]) as excel_file:
+                return dataframe_to_rows(read_excel_with_detected_header(excel_file))
+
+    raise GeographyTableError(f"No CSV or Excel file found in ZIP archive: {path}")
+
+
+def read_excel_rows(path: Path) -> list[dict[str, str]]:
+    return dataframe_to_rows(read_excel_with_detected_header(path))
+
+
+def read_excel_with_detected_header(source: object) -> pandas.DataFrame:
+    raw_df = pandas.read_excel(source, header=None, dtype=str)
+    header_index = find_excel_header_index(raw_df)
+    if header_index is None:
+        raise GeographyTableError("Unable to detect IRIS header row in Excel file.")
+
+    df = raw_df.iloc[header_index + 1 :].copy()
+    df.columns = [str(value).strip() for value in raw_df.iloc[header_index]]
+    df = df.dropna(how="all")
+    return df
+
+
+def find_excel_header_index(df: pandas.DataFrame) -> int | None:
+    iris_candidates = {normalize_column_name(column) for column in IRIS_CODE_COLUMNS}
+    commune_candidates = {
+        normalize_column_name(column) for column in COMMUNE_CODE_COLUMNS
+    }
+    for index, row in df.iterrows():
+        values = {normalize_column_name(str(value)) for value in row.dropna()}
+        if values & iris_candidates and values & commune_candidates:
+            return int(index)
+    return None
+
+
+def read_csv_file_rows(path: Path) -> list[dict[str, str]]:
+    content = decode_text(path.read_bytes())
+    return parse_csv_content(content)
+
+
+def decode_text(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise GeographyTableError("Unable to decode CSV content with supported encodings.")
+
+
+def parse_csv_content(content: str) -> list[dict[str, str]]:
     sample = content[:4096]
     try:
         dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
@@ -262,6 +355,18 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
         dialect = csv.excel
     reader = csv.DictReader(content.splitlines(), dialect=dialect)
     return [dict(row) for row in reader]
+
+
+def dataframe_to_rows(df: pandas.DataFrame) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for row in df.to_dict(orient="records"):
+        rows.append(
+            {
+                str(key): "" if pandas.isna(value) else str(value)
+                for key, value in row.items()
+            }
+        )
+    return rows
 
 
 def build_column_lookup(columns: Iterable[str]) -> dict[str, str]:
@@ -281,7 +386,12 @@ def require_column(
 
 
 def normalize_column_name(name: str) -> str:
-    return name.strip().lower().replace(" ", "_").replace("-", "_")
+    without_accents = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", name)
+        if not unicodedata.combining(character)
+    )
+    return without_accents.strip().lower().replace(" ", "_").replace("-", "_")
 
 
 def normalize_code(value: str | None) -> str:

@@ -3,7 +3,10 @@ from __future__ import annotations
 import csv
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
+
+import pandas
 
 from services.geography import (
     SECTOR_NAMES,
@@ -42,6 +45,44 @@ class GeographyTest(unittest.TestCase):
             self.assertIn("Bordeaux Caudéran", rows[0]["candidate_sectors"])
             self.assertIn("Bordeaux Fondaudège", rows[0]["candidate_sectors"])
             self.assertEqual(rows[1]["candidate_sectors"], "Le Bouscat")
+
+    def test_load_iris_table_supports_cp1252_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            iris_path = tmp_path / "iris_cp1252.csv"
+            iris_path.write_bytes(
+                (
+                    "code_iris;libelle_iris;code_commune;nom_commune\n"
+                    "330630101;Caudéran;33063;Bordeaux\n"
+                ).encode("cp1252")
+            )
+
+            iris_areas = load_iris_table(iris_path)
+
+            self.assertEqual(iris_areas[0].iris_label, "Caudéran")
+
+    def test_load_iris_table_supports_insee_excel_inside_zip(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            excel_path = tmp_path / "reference_IRIS_geo2024.xlsx"
+            zip_path = tmp_path / "reference_IRIS_geo2024.zip"
+            raw_df = pandas.DataFrame(
+                [
+                    ["Liste des IRIS au 1er janvier 2024", None, None, None],
+                    ["Source Insee", None, None, None],
+                    ["Code IRIS", "Libellé IRIS", "Code commune", "Nom commune"],
+                    ["CODE_IRIS", "LIB_IRIS", "DEPCOM", "LIBCOM"],
+                    ["330630101", "Caudéran", "33063", "Bordeaux"],
+                ]
+            )
+            raw_df.to_excel(excel_path, index=False, header=False)
+            with zipfile.ZipFile(zip_path, "w") as archive:
+                archive.write(excel_path, arcname=excel_path.name)
+
+            iris_areas = load_iris_table(zip_path)
+
+            self.assertEqual(iris_areas[0].iris_code, "330630101")
+            self.assertEqual(iris_areas[0].commune_code, "33063")
 
     def test_load_sector_iris_mapping_and_validate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
