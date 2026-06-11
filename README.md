@@ -474,6 +474,7 @@ Exemples :
 - `services/income_loader.py` : chargement des fichiers Filosofi IRIS et extraction du revenu disponible médian par unité de consommation
 - `services/population_loader.py` : chargement des fichiers de recensement IRIS et calcul de la population de 75 ans et plus
 - `services/household_loader.py` : chargement des fichiers ménages/recensement IRIS et extraction des indicateurs 75 ans et plus vivant seuls
+- `services/retired_csp_loader.py` : recherche conservatrice d'un indicateur retraités anciennement cadres/professions intellectuelles supérieures à l'échelle IRIS
 - `services/insee_iris_indicators.py` : chargement, calcul et persistance SQLite des indicateurs INSEE IRIS
 
 ## Indicateurs INSEE IRIS Bordeaux Métropole
@@ -531,6 +532,8 @@ Le module `services.household_loader` extrait les indicateurs de personnes âgé
 - estimation documentée à partir des variables disponibles.
 
 La sortie inclut toujours `metric_definition` pour distinguer les personnes vivant seules des ménages d'une personne, et `quality_flag` pour signaler les valeurs exactes ou estimées.
+
+Le module `services.retired_csp_loader` recherche uniquement des variables directes de retraités anciennement cadres ou professions intellectuelles supérieures. Si aucune variable fiable n'est présente dans le fichier IRIS, les valeurs restent vides et `quality_flag` vaut `not_available_directly_at_iris_level`. Le module ne fabrique pas d'estimation à partir de variables séparées comme retraités totaux et CSP+ actifs.
 
 Exemple d'exécution avec des fichiers INSEE CSV ou ZIP locaux ou distants :
 
