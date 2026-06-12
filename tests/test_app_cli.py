@@ -315,6 +315,42 @@ class AppCliTest(unittest.TestCase):
             )
             self.assertIn("Le Bouscat", report_content)
 
+    @unittest.skipIf(pandas is None, "pandas is not installed")
+    def test_build_ranking_writes_files_and_prints_top_10(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            input_path = tmp_path / "sector_report.csv"
+            output_csv = tmp_path / "sector_ranking.csv"
+            output_xlsx = tmp_path / "sector_ranking.xlsx"
+            input_path.write_text(
+                "sector_name,population_75_plus,people_80_plus_living_alone,"
+                "median_income_max,taxable_households_share_mean\n"
+                "Sector A,100,20,40000,70\n"
+                "Sector B,50,10,30000,60\n",
+                encoding="utf-8",
+            )
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = main(
+                    [
+                        "build-ranking",
+                        "--input",
+                        str(input_path),
+                        "--output-csv",
+                        str(output_csv),
+                        "--output-xlsx",
+                        str(output_xlsx),
+                    ]
+                )
+
+            content = output.getvalue()
+            self.assertEqual(result, 0)
+            self.assertTrue(output_csv.exists())
+            self.assertTrue(output_xlsx.exists())
+            self.assertIn("Top 10 sectors by premium opportunity score", content)
+            self.assertIn("Sector A", content)
+
     def test_inspect_source_prints_columns_and_preview(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             tmp_path = Path(directory)

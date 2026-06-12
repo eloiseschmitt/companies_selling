@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+import ranking
 from services.data_sources import (
     SourceReference,
     download_sources,
@@ -79,6 +80,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     add_export_iris_candidates_parser(subparsers)
     add_search_iris_parser(subparsers)
     add_build_report_parser(subparsers)
+    add_build_ranking_parser(subparsers)
     add_debug_report_parser(subparsers)
     add_debug_loaders_parser(subparsers)
     add_validate_mapping_parser(subparsers)
@@ -164,6 +166,22 @@ def add_build_report_parser(subparsers: argparse._SubParsersAction) -> None:
     add_common_options(parser)
 
 
+def add_build_ranking_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "build-ranking",
+        help="Build premium opportunity ranking files from sector_report.csv.",
+    )
+    parser.add_argument("--input", type=Path, default=ranking.DEFAULT_INPUT)
+    parser.add_argument("--output-csv", type=Path, default=ranking.DEFAULT_OUTPUT_CSV)
+    parser.add_argument("--output-xlsx", type=Path, default=ranking.DEFAULT_OUTPUT_XLSX)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Enable verbose logs.",
+    )
+
+
 def add_debug_report_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "debug-report",
@@ -244,6 +262,8 @@ def run_command(args: argparse.Namespace) -> int:
         return command_search_iris(args)
     if args.command == "build-report":
         return command_build_report(args)
+    if args.command == "build-ranking":
+        return command_build_ranking(args)
     if args.command == "debug-report":
         return command_debug_report(args)
     if args.command == "debug-loaders":
@@ -354,6 +374,28 @@ def command_build_report(args: argparse.Namespace) -> int:
     )
     logging.getLogger(__name__).info(
         "Built sector report with %s rows in %s.", len(report), args.output_dir
+    )
+    return 0
+
+
+def command_build_ranking(args: argparse.Namespace) -> int:
+    ranking_df = ranking.build_ranking_files(
+        input_path=args.input,
+        output_csv_path=args.output_csv,
+        output_xlsx_path=args.output_xlsx,
+    )
+    print("Top 10 sectors by premium opportunity score")
+    print(
+        ranking_df.loc[
+            :9,
+            ["premium_rank", "sector_name", "premium_opportunity_score"],
+        ].to_string(index=False)
+    )
+    logging.getLogger(__name__).info(
+        "Built sector ranking with %s rows: %s and %s.",
+        len(ranking_df),
+        args.output_csv,
+        args.output_xlsx,
     )
     return 0
 
