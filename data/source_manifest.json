@@ -1,0 +1,13 @@
+{
+  "sources": {
+    "insee_rp_iris_households": {
+      "downloaded_at": "2026-06-12T06:39:08.724345+00:00",
+      "local_filename": "insee_rp_iris_households_2022.zip",
+      "name": "INSEE Recensement de la population IRIS - ménages",
+      "sha256": "53e44dce54d95025b6a20288387eb997ad2eb9428bd2cecd73c89575a2c185ea",
+      "source_key": "insee_rp_iris_households",
+      "source_url": "https://www.insee.fr/fr/statistiques/fichier/8647008/base-ic-couples-familles-menages-2022_csv.zip",
+      "vintage": "2022"
+    }
+  }
+}

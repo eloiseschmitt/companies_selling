@@ -39,8 +39,12 @@ class HouseholdLoaderTest(unittest.TestCase):
             [
                 "iris_code",
                 "single_75_plus_count",
+                "people_80_plus_living_alone",
+                "people_55_79_living_alone",
+                "one_person_households_all_ages",
                 "metric_definition",
                 "quality_flag",
+                "quality_notes",
                 "source_name",
                 "source_year",
             ],
@@ -55,6 +59,26 @@ class HouseholdLoaderTest(unittest.TestCase):
             "exact_persons_75_plus_living_alone",
         )
         self.assertEqual(output.loc[0, "source_year"], "2021")
+
+    def test_extract_available_2022_proxy_indicators(self) -> None:
+        df = pandas.DataFrame(
+            {
+                "IRIS": ["330630101"],
+                "P22_POP80P_PSEUL": ["20"],
+                "P22_POP5579_PSEUL": ["30"],
+                "C22_MENPSEUL": ["90"],
+            }
+        )
+        df.attrs["source_year"] = "2022"
+
+        output = extract_single_75_plus_by_iris(df)
+
+        self.assertIsNone(output.loc[0, "single_75_plus_count"])
+        self.assertEqual(output.loc[0, "people_80_plus_living_alone"], 20.0)
+        self.assertEqual(output.loc[0, "people_55_79_living_alone"], 30.0)
+        self.assertEqual(output.loc[0, "one_person_households_all_ages"], 90.0)
+        self.assertEqual(output.loc[0, "quality_flag"], "available_direct_proxies")
+        self.assertIn("75+ living alone unavailable", output.loc[0, "quality_notes"])
 
     def test_extract_uses_one_person_household_reference_75_plus(self) -> None:
         df = pandas.DataFrame(

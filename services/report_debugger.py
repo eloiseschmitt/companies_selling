@@ -368,10 +368,22 @@ def detect_population_used_columns(df: pandas.DataFrame) -> dict[str, str]:
 
 def detect_household_used_columns(df: pandas.DataFrame) -> dict[str, str]:
     detection = detect_household_columns(df)
-    return {
-        "iris_code": detection.iris_code,
-        "single_75_plus_count": ", ".join(detection.value_columns),
-    }
+    used = {"iris_code": detection.iris_code}
+    if detection.single_75_plus_column:
+        used["single_75_plus_count"] = detection.single_75_plus_column
+    if detection.people_80_plus_living_alone_column:
+        used["people_80_plus_living_alone"] = (
+            detection.people_80_plus_living_alone_column
+        )
+    if detection.people_55_79_living_alone_column:
+        used["people_55_79_living_alone"] = (
+            detection.people_55_79_living_alone_column
+        )
+    if detection.one_person_households_all_ages_column:
+        used["one_person_households_all_ages"] = (
+            detection.one_person_households_all_ages_column
+        )
+    return used
 
 
 def detect_retired_csp_used_columns(df: pandas.DataFrame) -> dict[str, str]:

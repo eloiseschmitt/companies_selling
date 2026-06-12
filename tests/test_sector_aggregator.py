@@ -34,6 +34,9 @@ class SectorAggregatorTest(unittest.TestCase):
             {
                 "iris_code": ["IRIS1", "IRIS2"],
                 "single_75_plus_count": [4, 6],
+                "people_80_plus_living_alone": [2, 3],
+                "people_55_79_living_alone": [7, 8],
+                "one_person_households_all_ages": [20, 25],
                 "quality_flag": [
                     "exact_persons_75_plus_living_alone",
                     "exact_persons_75_plus_living_alone",
@@ -74,6 +77,9 @@ class SectorAggregatorTest(unittest.TestCase):
         )
         self.assertEqual(output.loc[0, "population_75_plus"], 40.0)
         self.assertEqual(output.loc[0, "single_75_plus_count"], 10.0)
+        self.assertEqual(output.loc[0, "people_80_plus_living_alone"], 5.0)
+        self.assertEqual(output.loc[0, "people_55_79_living_alone"], 15.0)
+        self.assertEqual(output.loc[0, "one_person_households_all_ages"], 45.0)
         self.assertEqual(output.loc[0, "retired_count"], 50.0)
         self.assertEqual(output.loc[0, "csp_plus_15_plus_count"], 5.0)
         self.assertEqual(output.loc[0, "source_years"], "2021")

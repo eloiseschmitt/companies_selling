@@ -54,6 +54,25 @@ def aggregate_sector_indicators(
             household_rows,
             quality_notes,
         )
+        people_80_plus_living_alone = sum_column(
+            household_rows,
+            "people_80_plus_living_alone",
+            quality_notes,
+            "people_80_plus_living_alone",
+        )
+        people_55_79_living_alone = sum_column(
+            household_rows,
+            "people_55_79_living_alone",
+            quality_notes,
+            "people_55_79_living_alone",
+        )
+        one_person_households_all_ages = sum_column(
+            household_rows,
+            "one_person_households_all_ages",
+            quality_notes,
+            "one_person_households_all_ages",
+        )
+        append_household_quality_notes(household_rows, quality_notes)
         retired_count, csp_plus_15_plus_count = aggregate_retired_and_csp(
             retired_rows,
             quality_notes,
@@ -74,6 +93,9 @@ def aggregate_sector_indicators(
                 "median_income_iris_values": median_values,
                 "population_75_plus": population_75_plus,
                 "single_75_plus_count": single_75_plus_count,
+                "people_80_plus_living_alone": people_80_plus_living_alone,
+                "people_55_79_living_alone": people_55_79_living_alone,
+                "one_person_households_all_ages": one_person_households_all_ages,
                 "retired_count": retired_count,
                 "csp_plus_15_plus_count": csp_plus_15_plus_count,
                 "quality_notes": " | ".join(quality_notes),
@@ -92,6 +114,9 @@ def aggregate_sector_indicators(
             "median_income_iris_values",
             "population_75_plus",
             "single_75_plus_count",
+            "people_80_plus_living_alone",
+            "people_55_79_living_alone",
+            "one_person_households_all_ages",
             "retired_count",
             "csp_plus_15_plus_count",
             "quality_notes",
@@ -167,6 +192,18 @@ def aggregate_single_75_plus(
             "not persons living alone"
         )
     return sum_numeric_series(rows["single_75_plus_count"])
+
+
+def append_household_quality_notes(
+    rows: pandas.DataFrame,
+    quality_notes: list[str],
+) -> None:
+    if rows.empty or "quality_notes" not in rows.columns:
+        return
+    for note in rows["quality_notes"].dropna().unique():
+        text = str(note).strip()
+        if text and text not in quality_notes:
+            quality_notes.append(text)
 
 
 def aggregate_retired_and_csp(

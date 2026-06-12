@@ -14,10 +14,20 @@ import pandas
 SOURCE_NAME = "INSEE Recensement de la population IRIS"
 QUALITY_EXACT_PERSONS = "exact_persons_75_plus_living_alone"
 QUALITY_EXACT_HOUSEHOLDS = "exact_households_reference_75_plus"
+QUALITY_AVAILABLE_PROXIES = "available_direct_proxies"
+QUALITY_NOT_AVAILABLE = "not_available_directly_at_iris_level"
 
 PERSONS_75_PLUS_LIVING_ALONE_DEFINITION = "persons aged 75+ living alone"
 HOUSEHOLDS_REFERENCE_75_PLUS_DEFINITION = (
     "one-person households whose reference person is aged 75+"
+)
+AVAILABLE_PROXY_DEFINITION = (
+    "directly available IRIS indicators: people 80+ living alone, people 55-79 "
+    "living alone, and one-person households all ages"
+)
+DIRECT_PROXY_QUALITY_NOTE = (
+    "75+ living alone unavailable at IRIS level; using 80+ living alone as closest "
+    "direct indicator."
 )
 
 IRIS_CODE_CANDIDATES = (
@@ -80,13 +90,42 @@ ONE_PERSON_HOUSEHOLDS_REFERENCE_75_PLUS_CANDIDATES = (
     "p20_men_pseul_75p",
     "p19_men_pseul_75p",
 )
+PEOPLE_80_PLUS_LIVING_ALONE_CANDIDATES = (
+    "people_80_plus_living_alone",
+    "pop80p_pseul",
+    "pop_80p_pseul",
+    "p22_pop80p_pseul",
+    "p21_pop80p_pseul",
+    "p20_pop80p_pseul",
+    "p19_pop80p_pseul",
+)
+PEOPLE_55_79_LIVING_ALONE_CANDIDATES = (
+    "people_55_79_living_alone",
+    "pop5579_pseul",
+    "pop_5579_pseul",
+    "p22_pop5579_pseul",
+    "p21_pop5579_pseul",
+    "p20_pop5579_pseul",
+    "p19_pop5579_pseul",
+)
+ONE_PERSON_HOUSEHOLDS_ALL_AGES_CANDIDATES = (
+    "one_person_households_all_ages",
+    "menpseul",
+    "men_pseul",
+    "c22_menpseul",
+    "c21_menpseul",
+    "c20_menpseul",
+    "c19_menpseul",
+)
 
 @dataclass(frozen=True)
 class HouseholdMetricDetection:
     iris_code: str
-    value_columns: tuple[str, ...]
-    metric_definition: str
-    quality_flag: str
+    single_75_plus_column: str | None
+    single_75_plus_definition: str | None
+    people_80_plus_living_alone_column: str | None
+    people_55_79_living_alone_column: str | None
+    one_person_households_all_ages_column: str | None
     source_year: str | None
 
 
@@ -125,15 +164,41 @@ def load_household_iris(file_path: Path) -> pandas.DataFrame:
 
 
 def extract_single_75_plus_by_iris(df: pandas.DataFrame) -> pandas.DataFrame:
-    """Extract a direct older people living alone indicator by IRIS."""
+    """Extract direct available older people living-alone indicators by IRIS."""
     detection = detect_metric_columns(df)
-    count = compute_single_75_plus_count(df, detection)
+    single_75_plus_count = (
+        df[detection.single_75_plus_column].map(parse_number)
+        if detection.single_75_plus_column
+        else pandas.Series([None] * len(df), index=df.index, dtype="object")
+    )
+    people_80_plus_living_alone = map_optional_number(
+        df,
+        detection.people_80_plus_living_alone_column,
+    )
+    people_55_79_living_alone = map_optional_number(
+        df,
+        detection.people_55_79_living_alone_column,
+    )
+    one_person_households_all_ages = map_optional_number(
+        df,
+        detection.one_person_households_all_ages_column,
+    )
+    quality_notes = (
+        ""
+        if detection.single_75_plus_column
+        else DIRECT_PROXY_QUALITY_NOTE
+    )
     output = pandas.DataFrame(
         {
             "iris_code": df[detection.iris_code].map(normalize_text),
-            "single_75_plus_count": count,
-            "metric_definition": detection.metric_definition,
-            "quality_flag": detection.quality_flag,
+            "single_75_plus_count": single_75_plus_count,
+            "people_80_plus_living_alone": people_80_plus_living_alone,
+            "people_55_79_living_alone": people_55_79_living_alone,
+            "one_person_households_all_ages": one_person_households_all_ages,
+            "metric_definition": detection.single_75_plus_definition
+            or AVAILABLE_PROXY_DEFINITION,
+            "quality_flag": build_quality_flag(detection),
+            "quality_notes": quality_notes,
             "source_name": df.attrs.get("source_name", SOURCE_NAME),
             "source_year": df.attrs.get("source_year") or detection.source_year,
         }
@@ -153,35 +218,79 @@ def detect_metric_columns(df: pandas.DataFrame) -> HouseholdMetricDetection:
         PERSONS_75_PLUS_LIVING_ALONE_CANDIDATES,
     )
     if direct_persons_column:
-        return HouseholdMetricDetection(
-            iris_code=iris_code,
-            value_columns=(direct_persons_column,),
-            metric_definition=PERSONS_75_PLUS_LIVING_ALONE_DEFINITION,
-            quality_flag=QUALITY_EXACT_PERSONS,
-            source_year=detect_source_year("", df.columns),
-        )
+        single_75_plus_column = direct_persons_column
+        single_75_plus_definition = PERSONS_75_PLUS_LIVING_ALONE_DEFINITION
+    else:
+        single_75_plus_column = None
+        single_75_plus_definition = None
 
     household_column = find_column(
         columns_by_normalized_name,
         ONE_PERSON_HOUSEHOLDS_REFERENCE_75_PLUS_CANDIDATES,
     )
-    if household_column:
-        return HouseholdMetricDetection(
-            iris_code=iris_code,
-            value_columns=(household_column,),
-            metric_definition=HOUSEHOLDS_REFERENCE_75_PLUS_DEFINITION,
-            quality_flag=QUALITY_EXACT_HOUSEHOLDS,
-            source_year=detect_source_year("", df.columns),
+    if household_column and single_75_plus_column is None:
+        single_75_plus_column = household_column
+        single_75_plus_definition = HOUSEHOLDS_REFERENCE_75_PLUS_DEFINITION
+
+    people_80_plus_column = find_column(
+        columns_by_normalized_name,
+        PEOPLE_80_PLUS_LIVING_ALONE_CANDIDATES,
+    )
+    people_55_79_column = find_column(
+        columns_by_normalized_name,
+        PEOPLE_55_79_LIVING_ALONE_CANDIDATES,
+    )
+    one_person_households_column = find_column(
+        columns_by_normalized_name,
+        ONE_PERSON_HOUSEHOLDS_ALL_AGES_CANDIDATES,
+    )
+    if not any(
+        (
+            single_75_plus_column,
+            people_80_plus_column,
+            people_55_79_column,
+            one_person_households_column,
         )
+    ):
+        raise household_metric_error(df)
 
-    raise household_metric_error(df)
+    return HouseholdMetricDetection(
+        iris_code=iris_code,
+        single_75_plus_column=single_75_plus_column,
+        single_75_plus_definition=single_75_plus_definition,
+        people_80_plus_living_alone_column=people_80_plus_column,
+        people_55_79_living_alone_column=people_55_79_column,
+        one_person_households_all_ages_column=one_person_households_column,
+        source_year=detect_source_year("", df.columns),
+    )
 
 
-def compute_single_75_plus_count(
+def map_optional_number(
     df: pandas.DataFrame,
-    detection: HouseholdMetricDetection,
+    column: str | None,
 ) -> pandas.Series:
-    return df[detection.value_columns[0]].map(parse_number)
+    if column is None:
+        return pandas.Series([None] * len(df), index=df.index, dtype="object")
+    return df[column].map(parse_number)
+
+
+def build_quality_flag(detection: HouseholdMetricDetection) -> str:
+    if detection.single_75_plus_column:
+        if (
+            detection.single_75_plus_definition
+            == HOUSEHOLDS_REFERENCE_75_PLUS_DEFINITION
+        ):
+            return QUALITY_EXACT_HOUSEHOLDS
+        return QUALITY_EXACT_PERSONS
+    if any(
+        (
+            detection.people_80_plus_living_alone_column,
+            detection.people_55_79_living_alone_column,
+            detection.one_person_households_all_ages_column,
+        )
+    ):
+        return QUALITY_AVAILABLE_PROXIES
+    return QUALITY_NOT_AVAILABLE
 
 
 def read_csv(path: Path) -> pandas.DataFrame:
@@ -259,10 +368,16 @@ def household_metric_error(df: pandas.DataFrame) -> HouseholdColumnError:
         + ", ".join(PERSONS_75_PLUS_LIVING_ALONE_CANDIDATES),
         "one-person households reference 75+: "
         + ", ".join(ONE_PERSON_HOUSEHOLDS_REFERENCE_75_PLUS_CANDIDATES),
+        "people 80+ living alone: "
+        + ", ".join(PEOPLE_80_PLUS_LIVING_ALONE_CANDIDATES),
+        "people 55-79 living alone: "
+        + ", ".join(PEOPLE_55_79_LIVING_ALONE_CANDIDATES),
+        "one-person households all ages: "
+        + ", ".join(ONE_PERSON_HOUSEHOLDS_ALL_AGES_CANDIDATES),
     )
     return HouseholdColumnError(
-        "Unable to detect a direct household indicator for people aged 75+ living "
-        "alone or one-person households whose reference person is aged 75+. "
+        "Unable to detect a direct household indicator for people living alone or "
+        "one-person households. "
         f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
         "Searched motifs: IRIS, 75, SEUL, MEN, MENAGE, P22, C22. "
         f"Candidate groups: {'; '.join(candidate_groups)}. "
