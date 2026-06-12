@@ -247,6 +247,7 @@ class AppCliTest(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertTrue((output_dir / "sector_report.csv").exists())
             self.assertTrue((output_dir / "sector_report.xlsx").exists())
+            self.assertTrue((output_dir / "sector_ranking.csv").exists())
             self.assertTrue((output_dir / "sector_ranking.xlsx").exists())
             self.assertTrue((output_dir / "source_manifest.json").exists())
             self.assertTrue((output_dir / "quality_report.md").exists())
@@ -307,6 +308,7 @@ class AppCliTest(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertTrue((output_dir / "sector_report.csv").exists())
             self.assertTrue((output_dir / "sector_report.xlsx").exists())
+            self.assertTrue((output_dir / "sector_ranking.csv").exists())
             self.assertTrue((output_dir / "sector_ranking.xlsx").exists())
             report_content = (output_dir / "sector_report.csv").read_text(
                 encoding="utf-8-sig"

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas
 
+from ranking import build_ranking_files
 from services.geography import load_sector_iris_mapping
 from services.household_loader import (
     extract_single_75_plus_by_iris,
@@ -62,7 +63,6 @@ def build_sector_report(
     )
     csv_path = output_dir / "sector_report.csv"
     xlsx_path = output_dir / "sector_report.xlsx"
-    ranking_xlsx_path = output_dir / "sector_ranking.xlsx"
     report.to_csv(csv_path, index=False, encoding="utf-8-sig")
     if output_format in {"xlsx", "all"}:
         write_xlsx(report, xlsx_path)
@@ -71,7 +71,11 @@ def build_sector_report(
         write_xlsx(report, xlsx_path)
     else:
         raise ReportBuildError(f"Unsupported output format: {output_format}")
-    write_xlsx(report, ranking_xlsx_path)
+    build_ranking_files(
+        input_path=csv_path,
+        output_csv_path=output_dir / "sector_ranking.csv",
+        output_xlsx_path=output_dir / "sector_ranking.xlsx",
+    )
 
     write_output_manifest(source_manifest_path, output_dir / "source_manifest.json")
     write_quality_report(report, output_dir / "quality_report.md")
