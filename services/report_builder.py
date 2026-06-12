@@ -82,8 +82,9 @@ def load_optional_income(path: Path | None) -> pandas.DataFrame | None:
     try:
         return extract_median_income_by_iris(load_filosofi_iris(path))
     except Exception as exc:
-        logger.warning("Income source ignored because it could not be loaded: %s", exc)
-        return None
+        raise ReportBuildError(
+            f"Income source could not be loaded from {path}: {exc}"
+        ) from exc
 
 
 def load_optional_population(path: Path | None) -> pandas.DataFrame | None:
@@ -92,10 +93,9 @@ def load_optional_population(path: Path | None) -> pandas.DataFrame | None:
     try:
         return extract_population_75_plus_by_iris(load_population_iris(path))
     except Exception as exc:
-        logger.warning(
-            "Population source ignored because it could not be loaded: %s", exc
-        )
-        return None
+        raise ReportBuildError(
+            f"Population source could not be loaded from {path}: {exc}"
+        ) from exc
 
 
 def load_optional_household(path: Path | None) -> pandas.DataFrame | None:
@@ -104,10 +104,9 @@ def load_optional_household(path: Path | None) -> pandas.DataFrame | None:
     try:
         return extract_single_75_plus_by_iris(load_household_iris(path))
     except Exception as exc:
-        logger.warning(
-            "Household source ignored because it could not be loaded: %s", exc
-        )
-        return None
+        raise ReportBuildError(
+            f"Household source could not be loaded from {path}: {exc}"
+        ) from exc
 
 
 def load_optional_retired_csp(path: Path | None) -> pandas.DataFrame | None:
@@ -116,10 +115,9 @@ def load_optional_retired_csp(path: Path | None) -> pandas.DataFrame | None:
     try:
         return extract_retired_csp_plus_by_iris(load_retired_csp_iris(path))
     except Exception as exc:
-        logger.warning(
-            "Retired CSP+ source ignored because it could not be loaded: %s", exc
-        )
-        return None
+        raise ReportBuildError(
+            f"Retired/CSP source could not be loaded from {path}: {exc}"
+        ) from exc
 
 
 def write_xlsx(report: pandas.DataFrame, output_path: Path) -> None:

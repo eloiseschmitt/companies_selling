@@ -192,6 +192,7 @@ def load_population_iris(file_path: Path) -> pandas.DataFrame:
             f"Unsupported population file format: {suffix or '<none>'}"
         )
 
+    df.attrs["source_path"] = str(path)
     df.attrs["source_name"] = SOURCE_NAME
     df.attrs["source_year"] = detect_source_year(path.name, df.columns)
     return df
@@ -228,13 +229,13 @@ def detect_columns(df: pandas.DataFrame) -> PopulationColumnDetection:
     columns_by_normalized_name = build_column_lookup(df.columns)
     iris_code = find_column(columns_by_normalized_name, IRIS_CODE_CANDIDATES)
     if iris_code is None:
-        raise missing_column_error("IRIS code", IRIS_CODE_CANDIDATES, df.columns)
+        raise missing_column_error("IRIS code", IRIS_CODE_CANDIDATES, df)
 
     population_total = find_column(
         columns_by_normalized_name,
         POPULATION_TOTAL_CANDIDATES,
     )
-    age_columns, quality_flag = detect_age_columns(columns_by_normalized_name)
+    age_columns, quality_flag = detect_age_columns(columns_by_normalized_name, df)
     return PopulationColumnDetection(
         iris_code=iris_code,
         population_total=population_total,
@@ -246,6 +247,7 @@ def detect_columns(df: pandas.DataFrame) -> PopulationColumnDetection:
 
 def detect_age_columns(
     columns_by_normalized_name: dict[str, str],
+    df: pandas.DataFrame,
 ) -> tuple[tuple[str, ...], str]:
     direct_column = find_column(columns_by_normalized_name, DIRECT_75_PLUS_CANDIDATES)
     if direct_column:
@@ -261,7 +263,7 @@ def detect_age_columns(
         if columns:
             return columns, QUALITY_APPROXIMATE
 
-    available_columns = ", ".join(columns_by_normalized_name.values())
+    available_columns = [str(column) for column in df.columns]
     candidate_groups = [
         "+".join(group)
         for group in [
@@ -269,10 +271,14 @@ def detect_age_columns(
             *APPROXIMATE_AGE_BAND_CANDIDATE_GROUPS,
         ]
     ]
+    found_candidates = find_candidate_columns(available_columns)
     raise PopulationColumnError(
         "Unable to detect age columns for population 75+. "
+        f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+        "Searched motifs: IRIS, POP, 75, 80, 85, 90, P22, P21. "
         f"Candidate groups: {', '.join(candidate_groups)}. "
-        f"Available columns: {available_columns}"
+        f"Candidate columns found: {', '.join(found_candidates) or 'none'}. "
+        f"Available columns: {', '.join(available_columns)}"
     )
 
 
@@ -344,14 +350,27 @@ def find_column(
 def missing_column_error(
     label: str,
     candidates: tuple[str, ...],
-    columns: Any,
+    df: pandas.DataFrame,
 ) -> PopulationColumnError:
-    available_columns = [str(column) for column in columns]
+    available_columns = [str(column) for column in df.columns]
+    found_candidates = find_candidate_columns(available_columns)
     return PopulationColumnError(
         f"Unable to detect population {label} column. "
+        f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+        "Searched motifs: IRIS, POP, 75, 80, 85, 90, P22, P21. "
         f"Candidate columns: {', '.join(candidates)}. "
+        f"Candidate columns found: {', '.join(found_candidates) or 'none'}. "
         f"Available columns: {', '.join(available_columns)}"
     )
+
+
+def find_candidate_columns(columns: list[str]) -> list[str]:
+    motifs = ("iris", "pop", "75", "80", "85", "90", "p22", "p21")
+    return [
+        column
+        for column in columns
+        if any(motif in normalize_column_name(column) for motif in motifs)
+    ]
 
 
 def sum_numeric_columns(

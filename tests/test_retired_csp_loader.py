@@ -71,7 +71,7 @@ class RetiredCspLoaderTest(unittest.TestCase):
         self.assertIsNone(output.loc[0, "csp_plus_15_plus_count"])
         self.assertEqual(output.loc[0, "quality_flag"], "retired_count_available")
 
-    def test_extract_returns_none_when_indicator_unavailable(self) -> None:
+    def test_extract_detects_available_proxy_columns(self) -> None:
         df = pandas.DataFrame(
             {
                 "iris": ["330630101"],
@@ -89,6 +89,23 @@ class RetiredCspLoaderTest(unittest.TestCase):
             output.loc[0, "quality_flag"],
             "retired_and_csp_plus_available",
         )
+
+    def test_extract_raises_when_no_proxy_column_is_available(self) -> None:
+        df = pandas.DataFrame(
+            {
+                "iris": ["330630101"],
+                "p21_pop75p": ["100"],
+            }
+        )
+
+        with self.assertRaises(RetiredCspColumnError) as context:
+            extract_retired_csp_plus_by_iris(df)
+
+        message = str(context.exception)
+        self.assertIn("Unable to detect retired_count", message)
+        self.assertIn("File read:", message)
+        self.assertIn("Searched motifs:", message)
+        self.assertIn("Candidate columns found:", message)
 
     def test_load_retired_csp_zip(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

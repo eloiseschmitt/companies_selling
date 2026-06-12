@@ -96,6 +96,7 @@ def load_filosofi_iris(file_path: Path) -> pandas.DataFrame:
             f"Unsupported Filosofi file format: {suffix or '<none>'}"
         )
 
+    df.attrs["source_path"] = str(path)
     df.attrs["source_name"] = SOURCE_NAME
     df.attrs["source_year"] = detect_source_year(path.name, df.columns)
     return df
@@ -131,14 +132,14 @@ def detect_columns(df: pandas.DataFrame) -> ColumnDetection:
     columns_by_normalized_name = build_column_lookup(df.columns)
     iris_code = find_column(columns_by_normalized_name, IRIS_CODE_CANDIDATES)
     if iris_code is None:
-        raise missing_column_error("IRIS code", IRIS_CODE_CANDIDATES, df.columns)
+        raise missing_column_error("IRIS code", IRIS_CODE_CANDIDATES, df)
 
     median_income = find_column(columns_by_normalized_name, MEDIAN_INCOME_CANDIDATES)
     if median_income is None:
         raise missing_column_error(
             "median disposable income",
             MEDIAN_INCOME_CANDIDATES,
-            df.columns,
+            df,
         )
 
     return ColumnDetection(
@@ -237,14 +238,34 @@ def find_column(
 def missing_column_error(
     label: str,
     candidates: tuple[str, ...],
-    columns: Any,
+    df: pandas.DataFrame,
 ) -> FilosofiColumnError:
-    available_columns = [str(column) for column in columns]
+    available_columns = [str(column) for column in df.columns]
+    found_candidates = find_candidate_columns(available_columns, candidates)
     return FilosofiColumnError(
         f"Unable to detect Filosofi {label} column. "
+        f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+        "Searched motifs: IRIS, CODE_IRIS, DISP, MED, DEC_MED, income. "
         f"Candidate columns: {', '.join(candidates)}. "
+        f"Candidate columns found: {', '.join(found_candidates) or 'none'}. "
         f"Available columns: {', '.join(available_columns)}"
     )
+
+
+def find_candidate_columns(
+    columns: list[str],
+    candidates: tuple[str, ...],
+) -> list[str]:
+    candidate_names = {normalize_column_name(candidate) for candidate in candidates}
+    motifs = ("iris", "disp", "med", "dec", "income", "revenu")
+    found: list[str] = []
+    for column in columns:
+        normalized = normalize_column_name(column)
+        if normalized in candidate_names or any(
+            motif in normalized for motif in motifs
+        ):
+            found.append(column)
+    return found
 
 
 def normalize_column_name(name: str) -> str:

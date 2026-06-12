@@ -100,6 +100,7 @@ def load_retired_csp_iris(file_path: Path) -> pandas.DataFrame:
             f"Unsupported retired CSP+ file format: {suffix or '<none>'}"
         )
 
+    df.attrs["source_path"] = str(path)
     df.attrs["source_name"] = SOURCE_NAME
     df.attrs["source_year"] = detect_source_year(path.name, df.columns)
     return df
@@ -138,7 +139,7 @@ def detect_metric_columns(df: pandas.DataFrame) -> RetiredCspDetection:
     columns_by_normalized_name = build_column_lookup(df.columns)
     iris_code = find_column(columns_by_normalized_name, IRIS_CODE_CANDIDATES)
     if iris_code is None:
-        raise missing_column_error("IRIS code", IRIS_CODE_CANDIDATES, df.columns)
+        raise missing_column_error("IRIS code", IRIS_CODE_CANDIDATES, df)
 
     retired_count_column = find_column(
         columns_by_normalized_name,
@@ -155,7 +156,7 @@ def detect_metric_columns(df: pandas.DataFrame) -> RetiredCspDetection:
     elif csp_plus_15_plus_count_column:
         quality_flag = QUALITY_CSP_PLUS_ONLY
     else:
-        quality_flag = QUALITY_NOT_AVAILABLE
+        raise retired_csp_metric_error(df)
 
     return RetiredCspDetection(
         iris_code=iris_code,
@@ -220,14 +221,43 @@ def find_column(
 def missing_column_error(
     label: str,
     candidates: tuple[str, ...],
-    columns: Any,
+    df: pandas.DataFrame,
 ) -> RetiredCspColumnError:
-    available_columns = [str(column) for column in columns]
+    available_columns = [str(column) for column in df.columns]
+    found_candidates = find_candidate_columns(available_columns)
     return RetiredCspColumnError(
         f"Unable to detect retired/CSP marginal {label} column. "
+        f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+        "Searched motifs: IRIS, RETR, RETRAITE, CS, CSP, CADRE, POP15P, P22, C22. "
         f"Candidate columns: {', '.join(candidates)}. "
+        f"Candidate columns found: {', '.join(found_candidates) or 'none'}. "
         f"Available columns: {', '.join(available_columns)}"
     )
+
+
+def retired_csp_metric_error(df: pandas.DataFrame) -> RetiredCspColumnError:
+    available_columns = [str(column) for column in df.columns]
+    found_candidates = find_candidate_columns(available_columns)
+    return RetiredCspColumnError(
+        "Unable to detect retired_count or csp_plus_15_plus_count proxy columns. "
+        f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+        "Searched motifs: IRIS, RETR, RETRAITE, CS, CSP, CADRE, POP15P, P22, C22. "
+        "Retired count candidates: "
+        f"{', '.join(RETIRED_COUNT_CANDIDATES)}. "
+        "CSP+ 15+ count candidates: "
+        f"{', '.join(CSP_PLUS_15_PLUS_COUNT_CANDIDATES)}. "
+        f"Candidate columns found: {', '.join(found_candidates) or 'none'}. "
+        f"Available columns: {', '.join(available_columns)}"
+    )
+
+
+def find_candidate_columns(columns: list[str]) -> list[str]:
+    motifs = ("iris", "retr", "retraite", "cs", "csp", "cadre", "pop15p", "p22", "c22")
+    return [
+        column
+        for column in columns
+        if any(motif in normalize_column_name(column) for motif in motifs)
+    ]
 
 
 def normalize_column_name(name: str) -> str:

@@ -131,10 +131,10 @@ class AppCliTest(unittest.TestCase):
             mapping_path = write_mapping(
                 tmp_path / "mapping.yml", {"Le Bouscat": ["330690101"]}
             )
-            income_path = tmp_path / "income.csv"
-            population_path = tmp_path / "population.csv"
-            household_path = tmp_path / "household.csv"
-            retired_path = tmp_path / "retired.csv"
+            income_path = tmp_path / "income_2021.csv"
+            population_path = tmp_path / "population_2022.csv"
+            household_path = tmp_path / "household_2022.csv"
+            retired_path = tmp_path / "retired_2022.csv"
             manifest_path = tmp_path / "source_manifest.json"
             output_dir = tmp_path / "output"
             income_path.write_text(
@@ -265,10 +265,10 @@ class AppCliTest(unittest.TestCase):
             mapping_path = write_mapping(
                 tmp_path / "mapping.yml", {"Le Bouscat": ["330690101", "330690999"]}
             )
-            income_path = tmp_path / "income.csv"
-            population_path = tmp_path / "population.csv"
-            household_path = tmp_path / "household.csv"
-            retired_path = tmp_path / "retired.csv"
+            income_path = tmp_path / "income_2021.csv"
+            population_path = tmp_path / "population_2022.csv"
+            household_path = tmp_path / "household_2022.csv"
+            retired_path = tmp_path / "retired_2022.csv"
             income_path.write_text(
                 "iris;disp_med21\n330690101;30000\n",
                 encoding="utf-8",
@@ -310,6 +310,13 @@ class AppCliTest(unittest.TestCase):
         self.assertIn("- rows: 1", content)
         self.assertIn("- iris distinct: 1", content)
         self.assertIn("- iris column: iris", content)
+        self.assertIn("- source columns used:", content)
+        self.assertIn("median_disposable_income: disp_med21", content)
+        self.assertIn("- normalized columns:", content)
+        self.assertIn("single_75_plus_count", content)
+        self.assertIn("- non-null values:", content)
+        self.assertIn("source_year: 1", content)
+        self.assertIn("- mapped iris examples:", content)
         self.assertIn("330690101", content)
         self.assertIn("Le Bouscat", content)
         self.assertIn("- configured iris: 2", content)

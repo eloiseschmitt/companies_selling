@@ -118,6 +118,7 @@ def load_household_iris(file_path: Path) -> pandas.DataFrame:
             f"Unsupported household file format: {suffix or '<none>'}"
         )
 
+    df.attrs["source_path"] = str(path)
     df.attrs["source_name"] = SOURCE_NAME
     df.attrs["source_year"] = detect_source_year(path.name, df.columns)
     return df
@@ -145,7 +146,7 @@ def detect_metric_columns(df: pandas.DataFrame) -> HouseholdMetricDetection:
     columns_by_normalized_name = build_column_lookup(df.columns)
     iris_code = find_column(columns_by_normalized_name, IRIS_CODE_CANDIDATES)
     if iris_code is None:
-        raise missing_column_error("IRIS code", IRIS_CODE_CANDIDATES, df.columns)
+        raise missing_column_error("IRIS code", IRIS_CODE_CANDIDATES, df)
 
     direct_persons_column = find_column(
         columns_by_normalized_name,
@@ -173,7 +174,7 @@ def detect_metric_columns(df: pandas.DataFrame) -> HouseholdMetricDetection:
             source_year=detect_source_year("", df.columns),
         )
 
-    raise household_metric_error(df.columns)
+    raise household_metric_error(df)
 
 
 def compute_single_75_plus_count(
@@ -236,18 +237,23 @@ def find_column(
 def missing_column_error(
     label: str,
     candidates: tuple[str, ...],
-    columns: Any,
+    df: pandas.DataFrame,
 ) -> HouseholdColumnError:
-    available_columns = [str(column) for column in columns]
+    available_columns = [str(column) for column in df.columns]
+    found_candidates = find_candidate_columns(available_columns)
     return HouseholdColumnError(
         f"Unable to detect household {label} column. "
+        f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+        "Searched motifs: IRIS, 75, SEUL, MEN, MENAGE, P22, C22. "
         f"Candidate columns: {', '.join(candidates)}. "
+        f"Candidate columns found: {', '.join(found_candidates) or 'none'}. "
         f"Available columns: {', '.join(available_columns)}"
     )
 
 
-def household_metric_error(columns: Any) -> HouseholdColumnError:
-    available_columns = [str(column) for column in columns]
+def household_metric_error(df: pandas.DataFrame) -> HouseholdColumnError:
+    available_columns = [str(column) for column in df.columns]
+    found_candidates = find_candidate_columns(available_columns)
     candidate_groups = (
         "persons 75+ living alone: "
         + ", ".join(PERSONS_75_PLUS_LIVING_ALONE_CANDIDATES),
@@ -257,9 +263,21 @@ def household_metric_error(columns: Any) -> HouseholdColumnError:
     return HouseholdColumnError(
         "Unable to detect a direct household indicator for people aged 75+ living "
         "alone or one-person households whose reference person is aged 75+. "
+        f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+        "Searched motifs: IRIS, 75, SEUL, MEN, MENAGE, P22, C22. "
         f"Candidate groups: {'; '.join(candidate_groups)}. "
+        f"Candidate columns found: {', '.join(found_candidates) or 'none'}. "
         f"Available columns: {', '.join(available_columns)}"
     )
+
+
+def find_candidate_columns(columns: list[str]) -> list[str]:
+    motifs = ("iris", "75", "seul", "men", "menage", "p22", "c22")
+    return [
+        column
+        for column in columns
+        if any(motif in normalize_column_name(column) for motif in motifs)
+    ]
 
 
 def normalize_column_name(name: str) -> str:
