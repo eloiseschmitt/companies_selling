@@ -119,6 +119,37 @@ class SectorAggregatorTest(unittest.TestCase):
         self.assertIsNone(output.loc[0, "single_75_plus_count"])
         self.assertIn("non-summable quality flags", output.loc[0, "quality_notes"])
 
+    def test_household_proxies_are_summed_without_single_75_warning(self) -> None:
+        output = aggregate_sector_indicators(
+            {"Sector A": ("IRIS1", "IRIS2")},
+            household_df=pandas.DataFrame(
+                {
+                    "iris_code": ["IRIS1", "IRIS2"],
+                    "single_75_plus_count": [None, None],
+                    "people_80_plus_living_alone": [2, 3],
+                    "people_55_79_living_alone": [7, 8],
+                    "one_person_households_all_ages": [20, 25],
+                    "quality_flag": [
+                        "available_direct_proxies",
+                        "available_direct_proxies",
+                    ],
+                    "quality_notes": [
+                        "75+ living alone unavailable at IRIS level; using 80+ "
+                        "living alone as closest direct indicator.",
+                        "75+ living alone unavailable at IRIS level; using 80+ "
+                        "living alone as closest direct indicator.",
+                    ],
+                }
+            ),
+        )
+
+        self.assertIsNone(output.loc[0, "single_75_plus_count"])
+        self.assertEqual(output.loc[0, "people_80_plus_living_alone"], 5.0)
+        self.assertEqual(output.loc[0, "people_55_79_living_alone"], 15.0)
+        self.assertEqual(output.loc[0, "one_person_households_all_ages"], 45.0)
+        self.assertNotIn("non-summable quality flags", output.loc[0, "quality_notes"])
+        self.assertIn("75+ living alone unavailable", output.loc[0, "quality_notes"])
+
     def test_retired_and_csp_marginals_are_aggregated_separately(self) -> None:
         output = aggregate_sector_indicators(
             {"Sector A": ("IRIS1",)},

@@ -173,6 +173,10 @@ def aggregate_single_75_plus(
         quality_notes.append("single_75_plus_count unavailable for configured IRIS")
         return None
 
+    values = rows["single_75_plus_count"].map(parse_number).dropna()
+    if values.empty:
+        return None
+
     if "quality_flag" not in rows.columns:
         quality_notes.append("single_75_plus_count not summed: missing quality_flag")
         return None
@@ -191,7 +195,7 @@ def aggregate_single_75_plus(
             "single_75_plus_count includes one-person households by reference person, "
             "not persons living alone"
         )
-    return sum_numeric_series(rows["single_75_plus_count"])
+    return float(values.sum())
 
 
 def append_household_quality_notes(
