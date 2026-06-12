@@ -44,6 +44,9 @@ def aggregate_sector_indicators(
             income_weight_column,
             quality_notes,
         )
+        taxable_min, taxable_max, taxable_mean = aggregate_taxable_households_share(
+            income_rows
+        )
         population_75_plus = sum_column(
             population_rows,
             "population_75_plus",
@@ -91,6 +94,9 @@ def aggregate_sector_indicators(
                 "median_income_max": median_max,
                 "median_income_weighted": median_weighted,
                 "median_income_iris_values": median_values,
+                "taxable_households_share_min": taxable_min,
+                "taxable_households_share_max": taxable_max,
+                "taxable_households_share_mean": taxable_mean,
                 "population_75_plus": population_75_plus,
                 "population_75_plus_rounded": round_optional(population_75_plus),
                 "single_75_plus_count": single_75_plus_count,
@@ -124,6 +130,9 @@ def aggregate_sector_indicators(
             "median_income_max",
             "median_income_weighted",
             "median_income_iris_values",
+            "taxable_households_share_min",
+            "taxable_households_share_max",
+            "taxable_households_share_mean",
             "population_75_plus",
             "population_75_plus_rounded",
             "single_75_plus_count",
@@ -181,6 +190,17 @@ def aggregate_income(
             "reliable weight column was provided"
         )
     return median_min, median_max, weighted_income, median_values
+
+
+def aggregate_taxable_households_share(
+    rows: pandas.DataFrame,
+) -> tuple[float | None, float | None, float | None]:
+    if rows.empty or "taxable_households_share" not in rows.columns:
+        return None, None, None
+    values = rows["taxable_households_share"].map(parse_number).dropna()
+    if values.empty:
+        return None, None, None
+    return float(values.min()), float(values.max()), float(values.mean())
 
 
 def sort_sector_report(report: pandas.DataFrame) -> pandas.DataFrame:

@@ -58,12 +58,22 @@ MEDIAN_INCOME_CANDIDATES = (
     "niveau_vie_median",
 )
 PREFERRED_MEDIAN_INCOME_COLUMN = "dec_med21"
+TAXABLE_HOUSEHOLDS_SHARE_CANDIDATES = (
+    "taxable_households_share",
+    "dec_pimp21",
+    "dec_pimp",
+    "dec_pimp20",
+    "dec_pimp19",
+    "part_menages_imposes",
+    "share_taxable_households",
+)
 
 
 @dataclass(frozen=True)
 class ColumnDetection:
     iris_code: str
     median_income: str
+    taxable_households_share: str | None
     iris_label: str | None
     commune_code: str | None
     source_year: str | None
@@ -114,6 +124,12 @@ def extract_median_income_by_iris(df: pandas.DataFrame) -> pandas.DataFrame:
             "source_year": df.attrs.get("source_year") or detection.source_year,
         }
     )
+    if detection.taxable_households_share:
+        output["taxable_households_share"] = df[
+            detection.taxable_households_share
+        ].map(parse_number)
+    else:
+        output["taxable_households_share"] = None
 
     if detection.iris_label:
         output.insert(1, "iris_label", df[detection.iris_label].map(normalize_text))
@@ -124,6 +140,9 @@ def extract_median_income_by_iris(df: pandas.DataFrame) -> pandas.DataFrame:
         output.insert(2, "commune_code", df[detection.commune_code].map(normalize_text))
     else:
         output.insert(2, "commune_code", None)
+
+    taxable_share = output.pop("taxable_households_share")
+    output.insert(4, "taxable_households_share", taxable_share)
 
     output = output.dropna(subset=["iris_code", "median_disposable_income"])
     return output.reset_index(drop=True)
@@ -158,6 +177,10 @@ def detect_columns(df: pandas.DataFrame) -> ColumnDetection:
     return ColumnDetection(
         iris_code=iris_code,
         median_income=median_income,
+        taxable_households_share=find_column(
+            columns_by_normalized_name,
+            TAXABLE_HOUSEHOLDS_SHARE_CANDIDATES,
+        ),
         iris_label=find_column(columns_by_normalized_name, IRIS_LABEL_CANDIDATES),
         commune_code=find_column(columns_by_normalized_name, COMMUNE_CODE_CANDIDATES),
         source_year=detect_source_year("", df.columns),

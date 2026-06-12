@@ -19,6 +19,7 @@ class SectorAggregatorTest(unittest.TestCase):
             {
                 "iris_code": ["IRIS1", "IRIS2"],
                 "median_disposable_income": [30000, 20000],
+                "taxable_households_share": [60, 40],
                 "income_weight": [100, 300],
                 "source_year": ["2021", "2021"],
             }
@@ -75,6 +76,9 @@ class SectorAggregatorTest(unittest.TestCase):
             output.loc[0, "median_income_iris_values"],
             "IRIS1:30000; IRIS2:20000",
         )
+        self.assertEqual(output.loc[0, "taxable_households_share_min"], 40.0)
+        self.assertEqual(output.loc[0, "taxable_households_share_max"], 60.0)
+        self.assertEqual(output.loc[0, "taxable_households_share_mean"], 50.0)
         self.assertEqual(output.loc[0, "population_75_plus"], 40.0)
         self.assertEqual(output.loc[0, "population_75_plus_rounded"], 40)
         self.assertEqual(output.loc[0, "single_75_plus_count"], 10.0)
