@@ -40,8 +40,8 @@ MEDIAN_INCOME_CANDIDATES = (
     "mediane_revenu_disponible_uc",
     "mediane_niveau_vie",
     "revenu_disponible_median_uc",
-    "dec_med",
     "dec_med21",
+    "dec_med",
     "dec_med20",
     "dec_med19",
     "dec_med18",
@@ -57,6 +57,7 @@ MEDIAN_INCOME_CANDIDATES = (
     "mediane_disp",
     "niveau_vie_median",
 )
+PREFERRED_MEDIAN_INCOME_COLUMN = "dec_med21"
 
 
 @dataclass(frozen=True)
@@ -140,6 +141,18 @@ def detect_columns(df: pandas.DataFrame) -> ColumnDetection:
             "median disposable income",
             MEDIAN_INCOME_CANDIDATES,
             df,
+        )
+    preferred_median_income = find_column(
+        columns_by_normalized_name,
+        (PREFERRED_MEDIAN_INCOME_COLUMN,),
+    )
+    if preferred_median_income and median_income != preferred_median_income:
+        raise FilosofiColumnError(
+            "DEC_MED21 exists but was not selected as median income column. "
+            f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+            f"Selected column: {median_income}. "
+            f"Expected column: {preferred_median_income}. "
+            f"Available columns: {', '.join(str(column) for column in df.columns)}"
         )
 
     return ColumnDetection(

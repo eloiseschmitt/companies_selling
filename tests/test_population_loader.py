@@ -69,6 +69,22 @@ class PopulationLoaderTest(unittest.TestCase):
         self.assertEqual(output.loc[0, "quality_flag"], "exact")
         self.assertEqual(output.loc[0, "source_year"], "2020")
 
+    def test_extract_detects_p22_pop75p_as_population_75_plus(self) -> None:
+        df = pandas.DataFrame(
+            {
+                "IRIS": ["330630101"],
+                "P22_POP": ["1000"],
+                "P22_POP75P": ["55"],
+            }
+        )
+        df.attrs["source_year"] = "2022"
+
+        output = extract_population_75_plus_by_iris(df)
+
+        self.assertEqual(output.loc[0, "population_total"], 1000.0)
+        self.assertEqual(output.loc[0, "population_75_plus"], 55.0)
+        self.assertEqual(output.loc[0, "source_year"], "2022")
+
     def test_extract_flags_approximate_age_bands(self) -> None:
         df = pandas.DataFrame(
             {

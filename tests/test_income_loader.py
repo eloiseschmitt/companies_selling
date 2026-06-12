@@ -90,6 +90,18 @@ class IncomeLoaderTest(unittest.TestCase):
         self.assertEqual(output.loc[0, "iris_code"], "330630101")
         self.assertEqual(output.loc[0, "median_disposable_income"], 30000.0)
 
+    def test_extract_detects_dec_med21_as_median_income(self) -> None:
+        df = pandas.DataFrame(
+            {
+                "IRIS": ["330630101"],
+                "DEC_MED21": ["30000"],
+            }
+        )
+
+        output = extract_median_income_by_iris(df)
+
+        self.assertEqual(output.loc[0, "median_disposable_income"], 30000.0)
+
     def test_extract_raises_explicit_error_when_income_column_missing(self) -> None:
         df = pandas.DataFrame(
             {

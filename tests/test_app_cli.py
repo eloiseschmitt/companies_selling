@@ -391,6 +391,43 @@ class AppCliTest(unittest.TestCase):
         self.assertIn("Bordeaux Caudéran", content)
         self.assertIn("- compared configured iris:", content)
 
+    @unittest.skipIf(pandas is None, "pandas is not installed")
+    def test_debug_loaders_prints_selected_columns_and_samples(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            income_path = tmp_path / "income_2021.csv"
+            population_path = tmp_path / "population_2022.csv"
+            income_path.write_text(
+                "IRIS;DEC_MED21\n330690101;30000\n330690102;31000\n",
+                encoding="utf-8",
+            )
+            population_path.write_text(
+                "IRIS;P22_POP75P\n330690101;40\n330690102;45\n",
+                encoding="utf-8",
+            )
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = main(
+                    [
+                        "debug-loaders",
+                        "--income-file",
+                        str(income_path),
+                        "--population-file",
+                        str(population_path),
+                    ]
+                )
+
+        content = output.getvalue()
+        self.assertEqual(result, 0)
+        self.assertIn("Income loader:", content)
+        self.assertIn("median income column selected: DEC_MED21", content)
+        self.assertIn("median_disposable_income", content)
+        self.assertIn("Population loader:", content)
+        self.assertIn("population_75_plus column selected: P22_POP75P", content)
+        self.assertIn("population_75_plus", content)
+        self.assertIn("- non null values: 2", content)
+
 
 def write_mapping(path: Path, values: dict[str, list[str]]) -> Path:
     lines = ["sectors:"]

@@ -22,6 +22,20 @@ from services.geography import (
     search_iris_areas,
     validate_sector_mapping,
 )
+from services.income_loader import (
+    detect_columns as detect_income_columns,
+)
+from services.income_loader import (
+    extract_median_income_by_iris,
+    load_filosofi_iris,
+)
+from services.population_loader import (
+    detect_columns as detect_population_columns,
+)
+from services.population_loader import (
+    extract_population_75_plus_by_iris,
+    load_population_iris,
+)
 from services.report_builder import DEFAULT_OUTPUT_DIR, build_sector_report
 from services.report_debugger import build_debug_report
 from services.source_inspector import format_inspection, inspect_source
@@ -66,6 +80,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     add_search_iris_parser(subparsers)
     add_build_report_parser(subparsers)
     add_debug_report_parser(subparsers)
+    add_debug_loaders_parser(subparsers)
     add_validate_mapping_parser(subparsers)
     add_inspect_source_parser(subparsers)
     return parser.parse_args(argv)
@@ -162,6 +177,22 @@ def add_debug_report_parser(subparsers: argparse._SubParsersAction) -> None:
     add_common_options(parser)
 
 
+def add_debug_loaders_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "debug-loaders",
+        help="Debug normalized income and population loader outputs.",
+    )
+    add_manifest_options(parser)
+    parser.add_argument("--income-file", type=Path)
+    parser.add_argument("--population-file", type=Path)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Enable verbose logs.",
+    )
+
+
 def add_validate_mapping_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "validate-mapping",
@@ -215,6 +246,8 @@ def run_command(args: argparse.Namespace) -> int:
         return command_build_report(args)
     if args.command == "debug-report":
         return command_debug_report(args)
+    if args.command == "debug-loaders":
+        return command_debug_loaders(args)
     if args.command == "validate-mapping":
         return command_validate_mapping(args)
     if args.command == "inspect-source":
@@ -359,6 +392,55 @@ def command_debug_report(args: argparse.Namespace) -> int:
             ),
         )
     )
+    return 0
+
+
+def command_debug_loaders(args: argparse.Namespace) -> int:
+    income_path = resolve_source_path(
+        explicit_path=args.income_file,
+        manifest_path=args.manifest,
+        raw_dir=args.raw_dir,
+        source_key=SOURCE_KEYS["income"],
+        label="Filosofi income",
+    )
+    population_path = resolve_source_path(
+        explicit_path=args.population_file,
+        manifest_path=args.manifest,
+        raw_dir=args.raw_dir,
+        source_key=SOURCE_KEYS["population"],
+        label="population",
+    )
+
+    income_source_df = load_filosofi_iris(income_path)
+    income_detection = detect_income_columns(income_source_df)
+    income_df = extract_median_income_by_iris(income_source_df)
+
+    population_source_df = load_population_iris(population_path)
+    population_detection = detect_population_columns(population_source_df)
+    population_df = extract_population_75_plus_by_iris(population_source_df)
+
+    print("Income loader:")
+    print(f"- file: {income_path}")
+    print(f"- median income column selected: {income_detection.median_income}")
+    print(
+        "- non null values: "
+        f"{int(income_df['median_disposable_income'].notna().sum())}"
+    )
+    print("- sample rows:")
+    print(income_df.head(5).to_string(index=False))
+    print("")
+    print("Population loader:")
+    print(f"- file: {population_path}")
+    print(
+        "- population_75_plus column selected: "
+        f"{', '.join(population_detection.population_75_plus_columns)}"
+    )
+    print(
+        "- non null values: "
+        f"{int(population_df['population_75_plus'].notna().sum())}"
+    )
+    print("- sample rows:")
+    print(population_df.head(5).to_string(index=False))
     return 0
 
 

@@ -28,6 +28,7 @@ POPULATION_TOTAL_CANDIDATES = (
     "population_total",
     "population",
     "pop_total",
+    "p22_pop",
     "p21_pop",
     "p20_pop",
     "p19_pop",
@@ -39,12 +40,14 @@ DIRECT_75_PLUS_CANDIDATES = (
     "pop75p",
     "pop_75p",
     "pop_75_plus",
+    "p22_pop75p",
     "p21_pop75p",
     "p20_pop75p",
     "p19_pop75p",
     "p18_pop75p",
     "p17_pop75p",
 )
+PREFERRED_75_PLUS_COLUMN = "p22_pop75p"
 EXACT_AGE_BAND_CANDIDATE_GROUPS = (
     ("75_79", "80_84", "85_89", "90_plus"),
     ("75_79", "80_84", "85_plus"),
@@ -251,6 +254,19 @@ def detect_age_columns(
 ) -> tuple[tuple[str, ...], str]:
     direct_column = find_column(columns_by_normalized_name, DIRECT_75_PLUS_CANDIDATES)
     if direct_column:
+        preferred_column = find_column(
+            columns_by_normalized_name,
+            (PREFERRED_75_PLUS_COLUMN,),
+        )
+        if preferred_column and direct_column != preferred_column:
+            available_columns = ", ".join(df.columns)
+            raise PopulationColumnError(
+                "P22_POP75P exists but was not selected as population 75+ column. "
+                f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
+                f"Selected column: {direct_column}. "
+                f"Expected column: {preferred_column}. "
+                f"Available columns: {available_columns}"
+            )
         return (direct_column,), QUALITY_EXACT
 
     for group in EXACT_AGE_BAND_CANDIDATE_GROUPS:
