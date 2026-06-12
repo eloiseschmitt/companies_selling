@@ -179,6 +179,49 @@ def build_iris_candidates(iris_areas: Sequence[IrisArea]) -> list[IrisCandidate]
     )
 
 
+def search_iris_areas(
+    iris_areas: Sequence[IrisArea],
+    commune: str | None = None,
+    query: str | None = None,
+) -> list[IrisArea]:
+    """Search IRIS rows by commune and IRIS label."""
+    normalized_commune = normalize_search_text(commune) if commune else None
+    normalized_query = normalize_search_text(query) if query else None
+    matches: list[IrisArea] = []
+    for area in iris_areas:
+        if normalized_commune and normalized_commune not in normalize_search_text(
+            area.commune_name
+        ):
+            continue
+        if normalized_query and normalized_query not in normalize_search_text(
+            area.iris_label
+        ):
+            continue
+        matches.append(area)
+    return sorted(matches, key=lambda area: (area.commune_name, area.iris_code))
+
+
+def filter_iris_candidates(
+    candidates: Sequence[IrisCandidate],
+    commune: str | None = None,
+    query: str | None = None,
+) -> list[IrisCandidate]:
+    """Filter candidate rows by commune and IRIS label."""
+    matching_codes = {
+        area.iris_code
+        for area in search_iris_areas(
+            [candidate.iris for candidate in candidates],
+            commune=commune,
+            query=query,
+        )
+    }
+    return [
+        candidate
+        for candidate in candidates
+        if candidate.iris.iris_code in matching_codes
+    ]
+
+
 def export_iris_candidates(
     output_path: Path, candidates: Sequence[IrisCandidate]
 ) -> None:
@@ -449,6 +492,17 @@ def normalize_column_name(name: str) -> str:
 
 def normalize_code(value: str | None) -> str:
     return "" if value is None else str(value).strip().upper()
+
+
+def normalize_search_text(value: str | None) -> str:
+    if value is None:
+        return ""
+    without_accents = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", str(value))
+        if not unicodedata.combining(character)
+    )
+    return without_accents.strip().lower()
 
 
 def strip_yaml_comment(line: str) -> str:

@@ -16,8 +16,10 @@ from services.data_sources import (
 from services.geography import (
     build_iris_candidates,
     export_iris_candidates,
+    filter_iris_candidates,
     load_iris_table,
     load_sector_iris_mapping,
+    search_iris_areas,
     validate_sector_mapping,
 )
 from services.report_builder import DEFAULT_OUTPUT_DIR, build_sector_report
@@ -61,6 +63,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     add_download_sources_parser(subparsers)
     add_export_iris_candidates_parser(subparsers)
+    add_search_iris_parser(subparsers)
     add_build_report_parser(subparsers)
     add_debug_report_parser(subparsers)
     add_validate_mapping_parser(subparsers)
@@ -108,10 +111,30 @@ def add_export_iris_candidates_parser(subparsers: argparse._SubParsersAction) ->
         help="Export IRIS rows from communes concerned by the sectors.",
     )
     parser.add_argument("--iris-source", type=Path)
+    parser.add_argument("--commune", help="Filter candidates by commune name.")
+    parser.add_argument("--query", help="Filter candidates by IRIS label.")
     parser.add_argument("--output", type=Path, default=DEFAULT_IRIS_CANDIDATES_OUTPUT)
     parser.add_argument("--force-refresh", action="store_true")
     add_manifest_options(parser)
     add_common_options(parser)
+
+
+def add_search_iris_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "search-iris",
+        help="Search IRIS geography rows by commune and IRIS label.",
+    )
+    parser.add_argument("--iris-source", type=Path)
+    parser.add_argument("--commune", required=True, help="Commune name to search.")
+    parser.add_argument("--query", required=True, help="IRIS label search text.")
+    parser.add_argument("--force-refresh", action="store_true")
+    add_manifest_options(parser)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Enable verbose logs.",
+    )
 
 
 def add_build_report_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -186,6 +209,8 @@ def run_command(args: argparse.Namespace) -> int:
         return command_download_sources(args)
     if args.command == "export-iris-candidates":
         return command_export_iris_candidates(args)
+    if args.command == "search-iris":
+        return command_search_iris(args)
     if args.command == "build-report":
         return command_build_report(args)
     if args.command == "debug-report":
@@ -226,10 +251,36 @@ def command_export_iris_candidates(args: argparse.Namespace) -> int:
     )
     iris_areas = load_iris_table(iris_source)
     candidates = build_iris_candidates(iris_areas)
+    candidates = filter_iris_candidates(
+        candidates,
+        commune=args.commune,
+        query=args.query,
+    )
     export_iris_candidates(args.output, candidates)
     logging.getLogger(__name__).info(
         "Exported %s candidate IRIS rows to %s.", len(candidates), args.output
     )
+    return 0
+
+
+def command_search_iris(args: argparse.Namespace) -> int:
+    iris_source = resolve_source_path(
+        explicit_path=args.iris_source,
+        manifest_path=args.manifest,
+        raw_dir=args.raw_dir,
+        source_key=SOURCE_KEYS["iris_geography"],
+        label="IRIS geography",
+    )
+    iris_areas = load_iris_table(iris_source)
+    matches = search_iris_areas(
+        iris_areas,
+        commune=args.commune,
+        query=args.query,
+    )
+    print("iris_code,iris_label,commune")
+    for area in matches:
+        print(f"{area.iris_code},{area.iris_label},{area.commune_name}")
+    logging.getLogger(__name__).info("Found %s IRIS rows.", len(matches))
     return 0
 
 

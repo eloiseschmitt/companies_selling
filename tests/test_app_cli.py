@@ -90,6 +90,72 @@ class AppCliTest(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertTrue(output_path.exists())
 
+    def test_export_iris_candidates_filters_by_commune_and_label(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            iris_path = tmp_path / "iris.csv"
+            output_path = tmp_path / "iris_candidates.csv"
+            iris_path.write_text(
+                "iris;libiris;com;libcom\n"
+                "330630101;Caudéran centre;33063;Bordeaux\n"
+                "330630102;Chartrons;33063;Bordeaux\n"
+                "330690101;Centre;33069;Le Bouscat\n",
+                encoding="utf-8",
+            )
+
+            result = main(
+                [
+                    "export-iris-candidates",
+                    "--iris-source",
+                    str(iris_path),
+                    "--commune",
+                    "Bordeaux",
+                    "--query",
+                    "Cauderan",
+                    "--output",
+                    str(output_path),
+                ]
+            )
+
+            content = output_path.read_text(encoding="utf-8-sig")
+            self.assertEqual(result, 0)
+            self.assertIn("330630101", content)
+            self.assertNotIn("330630102", content)
+            self.assertNotIn("330690101", content)
+
+    def test_search_iris_prints_matching_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            iris_path = tmp_path / "iris.csv"
+            iris_path.write_text(
+                "iris;libiris;com;libcom\n"
+                "330630101;Caudéran centre;33063;Bordeaux\n"
+                "330630102;Chartrons;33063;Bordeaux\n"
+                "330690101;Centre;33069;Le Bouscat\n",
+                encoding="utf-8",
+            )
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = main(
+                    [
+                        "search-iris",
+                        "--iris-source",
+                        str(iris_path),
+                        "--commune",
+                        "Bordeaux",
+                        "--query",
+                        "Cauderan",
+                    ]
+                )
+
+        content = output.getvalue()
+        self.assertEqual(result, 0)
+        self.assertIn("iris_code,iris_label,commune", content)
+        self.assertIn("330630101,Caudéran centre,Bordeaux", content)
+        self.assertNotIn("330630102", content)
+        self.assertNotIn("330690101", content)
+
     def test_validate_mapping_uses_manifest_when_source_not_provided(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             tmp_path = Path(directory)

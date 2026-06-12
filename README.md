@@ -97,6 +97,23 @@ python -m app export-iris-candidates
 
 La commande utilise `--iris-source` si fourni. Sinon elle cherche automatiquement la source géographique IRIS dans `data/source_manifest.json`.
 
+Pour rechercher des IRIS par libellé avant de remplir le mapping :
+
+```bash
+python -m app search-iris --commune "Bordeaux" --query "Caudéran"
+```
+
+La recherche se fait dans les libellés IRIS et affiche le code IRIS, le libellé IRIS et la commune.
+
+Il est aussi possible de filtrer l'export des candidats par commune et libellé IRIS :
+
+```bash
+python -m app export-iris-candidates \
+  --commune "Bordeaux" \
+  --query "Caudéran" \
+  --output data/output/iris_candidates_cauderan.csv
+```
+
 Le fichier source IRIS doit contenir au minimum :
 
 - code IRIS ;
