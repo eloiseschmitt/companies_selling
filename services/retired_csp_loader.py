@@ -233,9 +233,7 @@ def read_gsec_metadata_from_zip(path: Path) -> dict[str, str]:
 def format_gsec_metadata(metadata: dict[str, str]) -> str:
     if not metadata:
         return "No C22_POP15P_STAT_GSEC metadata found."
-    return "\n".join(
-        f"{column}: {label}" for column, label in sorted(metadata.items())
-    )
+    return "\n".join(f"{column}: {label}" for column, label in sorted(metadata.items()))
 
 
 def validate_csp_plus_column(
@@ -256,8 +254,7 @@ def validate_csp_plus_column(
 def is_csp_plus_label(label: str) -> bool:
     normalized = normalize_column_name(label)
     return (
-        "cadre" in normalized
-        or "professions_intellectuelles_superieures" in normalized
+        "cadre" in normalized or "professions_intellectuelles_superieures" in normalized
     )
 
 

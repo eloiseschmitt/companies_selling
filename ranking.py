@@ -52,8 +52,7 @@ def build_ranking(sector_report: pandas.DataFrame) -> pandas.DataFrame:
         ranking[score_column] = min_max_score(ranking[source_column])
 
     ranking["premium_opportunity_score"] = sum(
-        ranking[score_column] * weight
-        for score_column, weight in SCORE_WEIGHTS.items()
+        ranking[score_column] * weight for score_column, weight in SCORE_WEIGHTS.items()
     )
     ranking = ranking.sort_values(
         by="premium_opportunity_score",

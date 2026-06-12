@@ -291,9 +291,7 @@ def aggregate_retired_and_csp(
         return None, None
 
     retired_count = (
-        sum_numeric_series(rows["retired_count"])
-        if "retired_count" in rows
-        else None
+        sum_numeric_series(rows["retired_count"]) if "retired_count" in rows else None
     )
     csp_plus_count = (
         sum_numeric_series(rows["csp_plus_15_plus_count"])

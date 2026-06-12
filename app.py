@@ -423,8 +423,7 @@ def command_debug_loaders(args: argparse.Namespace) -> int:
     print(f"- file: {income_path}")
     print(f"- median income column selected: {income_detection.median_income}")
     print(
-        "- non null values: "
-        f"{int(income_df['median_disposable_income'].notna().sum())}"
+        f"- non null values: {int(income_df['median_disposable_income'].notna().sum())}"
     )
     print("- sample rows:")
     print(income_df.head(5).to_string(index=False))
@@ -436,8 +435,7 @@ def command_debug_loaders(args: argparse.Namespace) -> int:
         f"{', '.join(population_detection.population_75_plus_columns)}"
     )
     print(
-        "- non null values: "
-        f"{int(population_df['population_75_plus'].notna().sum())}"
+        f"- non null values: {int(population_df['population_75_plus'].notna().sum())}"
     )
     print("- sample rows:")
     print(population_df.head(5).to_string(index=False))

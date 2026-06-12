@@ -35,8 +35,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         required=True,
         help=(
-            "CSV table containing IRIS code, IRIS label, commune code "
-            "and commune name."
+            "CSV table containing IRIS code, IRIS label, commune code and commune name."
         ),
     )
     parser.add_argument(

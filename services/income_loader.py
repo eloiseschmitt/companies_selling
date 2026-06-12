@@ -125,9 +125,9 @@ def extract_median_income_by_iris(df: pandas.DataFrame) -> pandas.DataFrame:
         }
     )
     if detection.taxable_households_share:
-        output["taxable_households_share"] = df[
-            detection.taxable_households_share
-        ].map(parse_number)
+        output["taxable_households_share"] = df[detection.taxable_households_share].map(
+            parse_number
+        )
     else:
         output["taxable_households_share"] = None
 

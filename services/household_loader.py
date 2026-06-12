@@ -118,6 +118,7 @@ ONE_PERSON_HOUSEHOLDS_ALL_AGES_CANDIDATES = (
     "c19_menpseul",
 )
 
+
 @dataclass(frozen=True)
 class HouseholdMetricDetection:
     iris_code: str
@@ -183,11 +184,7 @@ def extract_single_75_plus_by_iris(df: pandas.DataFrame) -> pandas.DataFrame:
         df,
         detection.one_person_households_all_ages_column,
     )
-    quality_notes = (
-        ""
-        if detection.single_75_plus_column
-        else DIRECT_PROXY_QUALITY_NOTE
-    )
+    quality_notes = "" if detection.single_75_plus_column else DIRECT_PROXY_QUALITY_NOTE
     output = pandas.DataFrame(
         {
             "iris_code": df[detection.iris_code].map(normalize_text),
@@ -368,10 +365,8 @@ def household_metric_error(df: pandas.DataFrame) -> HouseholdColumnError:
         + ", ".join(PERSONS_75_PLUS_LIVING_ALONE_CANDIDATES),
         "one-person households reference 75+: "
         + ", ".join(ONE_PERSON_HOUSEHOLDS_REFERENCE_75_PLUS_CANDIDATES),
-        "people 80+ living alone: "
-        + ", ".join(PEOPLE_80_PLUS_LIVING_ALONE_CANDIDATES),
-        "people 55-79 living alone: "
-        + ", ".join(PEOPLE_55_79_LIVING_ALONE_CANDIDATES),
+        "people 80+ living alone: " + ", ".join(PEOPLE_80_PLUS_LIVING_ALONE_CANDIDATES),
+        "people 55-79 living alone: " + ", ".join(PEOPLE_55_79_LIVING_ALONE_CANDIDATES),
         "one-person households all ages: "
         + ", ".join(ONE_PERSON_HOUSEHOLDS_ALL_AGES_CANDIDATES),
     )

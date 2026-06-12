@@ -187,11 +187,7 @@ def debug_source(
 
     source_iris = tuple(
         sorted(
-            {
-                code
-                for code in df[iris_column].map(normalize_iris_code).dropna()
-                if code
-            }
+            {code for code in df[iris_column].map(normalize_iris_code).dropna() if code}
         )
     )
     source_iris_set = set(source_iris)
@@ -376,9 +372,7 @@ def detect_household_used_columns(df: pandas.DataFrame) -> dict[str, str]:
             detection.people_80_plus_living_alone_column
         )
     if detection.people_55_79_living_alone_column:
-        used["people_55_79_living_alone"] = (
-            detection.people_55_79_living_alone_column
-        )
+        used["people_55_79_living_alone"] = detection.people_55_79_living_alone_column
     if detection.one_person_households_all_ages_column:
         used["one_person_households_all_ages"] = (
             detection.one_person_households_all_ages_column
