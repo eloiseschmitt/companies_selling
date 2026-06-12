@@ -104,7 +104,30 @@ Le fichier source IRIS doit contenir au minimum :
 - code commune ;
 - nom commune.
 
-Ensuite, ouvrir `data/output/iris_candidates.csv`, examiner les libellés IRIS, puis reporter manuellement les codes retenus dans `config/sector_iris_mapping.yml`.
+Ensuite, ouvrir `data/output/iris_candidates.csv`, examiner les libellés IRIS, puis corriger manuellement la colonne `candidate_sectors` pour ne garder que les secteurs validés humainement.
+
+Une ligne peut associer un IRIS à plusieurs secteurs avec `;` :
+
+```csv
+commune_code,commune_name,iris_code,iris_label,candidate_sectors
+33063,Bordeaux,330630101,Le Lac 1,Bordeaux Caudéran; Bordeaux Fondaudège
+```
+
+Après revue du CSV, mettre à jour automatiquement `config/sector_iris_mapping.yml` :
+
+```bash
+python scripts/update_sector_mapping_from_candidates.py
+```
+
+Options utiles :
+
+```bash
+python scripts/update_sector_mapping_from_candidates.py \
+  --candidates data/output/iris_candidates.csv \
+  --mapping config/sector_iris_mapping.yml
+```
+
+Le script ajoute chaque `iris_code` aux secteurs listés dans `candidate_sectors`. Il ne choisit pas les IRIS à ta place : la validation humaine se fait dans le CSV avant l'import.
 
 Exemple :
 
