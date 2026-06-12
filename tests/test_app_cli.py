@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -255,6 +257,66 @@ class AppCliTest(unittest.TestCase):
             result = main(["inspect-source", "--source", str(source_path)])
 
         self.assertEqual(result, 0)
+
+    @unittest.skipIf(pandas is None, "pandas is not installed")
+    def test_debug_report_prints_source_and_mapping_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp_path = Path(directory)
+            mapping_path = write_mapping(
+                tmp_path / "mapping.yml", {"Le Bouscat": ["330690101", "330690999"]}
+            )
+            income_path = tmp_path / "income.csv"
+            population_path = tmp_path / "population.csv"
+            household_path = tmp_path / "household.csv"
+            retired_path = tmp_path / "retired.csv"
+            income_path.write_text(
+                "iris;disp_med21\n330690101;30000\n",
+                encoding="utf-8",
+            )
+            population_path.write_text(
+                "iris;p21_pop75p\n330690101;40\n",
+                encoding="utf-8",
+            )
+            household_path.write_text(
+                "iris;p21_pop75p_seul\n330690101;12\n",
+                encoding="utf-8",
+            )
+            retired_path.write_text(
+                "iris;p21_pop15p_retraites;p21_pop15p_cs3\n330690101;30;3\n",
+                encoding="utf-8",
+            )
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = main(
+                    [
+                        "debug-report",
+                        "--sector-mapping",
+                        str(mapping_path),
+                        "--income-file",
+                        str(income_path),
+                        "--population-file",
+                        str(population_path),
+                        "--household-file",
+                        str(household_path),
+                        "--retired-csp-file",
+                        str(retired_path),
+                    ]
+                )
+
+        content = output.getvalue()
+        self.assertEqual(result, 0)
+        self.assertIn("Income source:", content)
+        self.assertIn("- rows: 1", content)
+        self.assertIn("- iris distinct: 1", content)
+        self.assertIn("- iris column: iris", content)
+        self.assertIn("330690101", content)
+        self.assertIn("Le Bouscat", content)
+        self.assertIn("- configured iris: 2", content)
+        self.assertIn("- found: 1", content)
+        self.assertIn("- missing: 1", content)
+        self.assertIn("Bordeaux Caudéran", content)
+        self.assertIn("- compared configured iris:", content)
 
 
 def write_mapping(path: Path, values: dict[str, list[str]]) -> Path:

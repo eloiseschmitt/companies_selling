@@ -21,6 +21,7 @@ from services.geography import (
     validate_sector_mapping,
 )
 from services.report_builder import DEFAULT_OUTPUT_DIR, build_sector_report
+from services.report_debugger import build_debug_report
 from services.source_inspector import format_inspection, inspect_source
 
 app = FastAPI()
@@ -61,6 +62,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     add_download_sources_parser(subparsers)
     add_export_iris_candidates_parser(subparsers)
     add_build_report_parser(subparsers)
+    add_debug_report_parser(subparsers)
     add_validate_mapping_parser(subparsers)
     add_inspect_source_parser(subparsers)
     return parser.parse_args(argv)
@@ -124,6 +126,19 @@ def add_build_report_parser(subparsers: argparse._SubParsersAction) -> None:
     add_common_options(parser)
 
 
+def add_debug_report_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "debug-report",
+        help="Debug source IRIS coverage against the configured sector mapping.",
+    )
+    add_manifest_options(parser)
+    parser.add_argument("--income-file", type=Path)
+    parser.add_argument("--population-file", type=Path)
+    parser.add_argument("--household-file", type=Path)
+    parser.add_argument("--retired-csp-file", type=Path)
+    add_common_options(parser)
+
+
 def add_validate_mapping_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "validate-mapping",
@@ -173,6 +188,8 @@ def run_command(args: argparse.Namespace) -> int:
         return command_export_iris_candidates(args)
     if args.command == "build-report":
         return command_build_report(args)
+    if args.command == "debug-report":
+        return command_debug_report(args)
     if args.command == "validate-mapping":
         return command_validate_mapping(args)
     if args.command == "inspect-source":
@@ -257,6 +274,43 @@ def command_build_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_debug_report(args: argparse.Namespace) -> int:
+    print(
+        build_debug_report(
+            sector_mapping_path=args.sector_mapping,
+            income_path=resolve_optional_report_source(
+                args.income_file,
+                args.manifest,
+                args.raw_dir,
+                SOURCE_KEYS["income"],
+                "Filosofi income",
+            ),
+            population_path=resolve_optional_report_source(
+                args.population_file,
+                args.manifest,
+                args.raw_dir,
+                SOURCE_KEYS["population"],
+                "population",
+            ),
+            household_path=resolve_optional_report_source(
+                args.household_file,
+                args.manifest,
+                args.raw_dir,
+                SOURCE_KEYS["household"],
+                "household",
+            ),
+            retired_csp_path=resolve_optional_report_source(
+                args.retired_csp_file,
+                args.manifest,
+                args.raw_dir,
+                SOURCE_KEYS["retired_csp"],
+                "retired CSP+",
+            ),
+        )
+    )
+    return 0
+
+
 def command_validate_mapping(args: argparse.Namespace) -> int:
     iris_source = resolve_source_path(
         explicit_path=args.iris_source,
@@ -307,6 +361,9 @@ def resolve_source_path(
 
     manifest_path = Path(manifest_path)
     if not manifest_path.exists():
+        candidates = find_raw_source_candidates(raw_dir, source_key)
+        if candidates:
+            return sorted(candidates)[-1]
         raise CliSourceError(
             f"No {label} source provided and manifest not found: {manifest_path}. "
             "Run download-sources with source URLs first, or pass the source file "
