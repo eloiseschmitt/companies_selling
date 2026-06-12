@@ -25,6 +25,11 @@ QUALITY_NOTE = (
     "retired_count and csp_plus_15_plus_count are separate indicators; they are "
     "not equivalent to retired formerly CSP+ people"
 )
+CSP_PLUS_UNAVAILABLE_NOTE = (
+    "csp_plus_15_plus_count unavailable because no GSEC metadata label explicitly "
+    "mentions cadres or professions intellectuelles supérieures"
+)
+GSEC_METADATA_ATTR = "gsec_metadata"
 
 IRIS_CODE_CANDIDATES = (
     "iris_code",
@@ -36,6 +41,7 @@ IRIS_CODE_CANDIDATES = (
 )
 RETIRED_COUNT_CANDIDATES = (
     "retired_count",
+    "c22_pop15p_stat_gsec32",
     "retraites",
     "retraites_count",
     "pop15p_retraites",
@@ -49,6 +55,7 @@ RETIRED_COUNT_CANDIDATES = (
 )
 CSP_PLUS_15_PLUS_COUNT_CANDIDATES = (
     "csp_plus_15_plus_count",
+    "c22_pop15p_stat_gsec13_23",
     "cadres_professions_intellectuelles_superieures_15_plus",
     "cadres_15_plus",
     "cs3_15_plus",
@@ -69,6 +76,7 @@ class RetiredCspDetection:
     csp_plus_15_plus_count_column: str | None
     metric_definition: str
     quality_flag: str
+    quality_note: str
     source_year: str | None
 
 
@@ -91,6 +99,7 @@ def load_retired_csp_iris(file_path: Path) -> pandas.DataFrame:
         df = read_csv(path)
     elif suffix == ".zip":
         df = read_csv_from_zip(path)
+        df.attrs[GSEC_METADATA_ATTR] = read_gsec_metadata_from_zip(path)
     elif suffix in {".xlsx", ".xls"}:
         df = pandas.read_excel(path, dtype=str)
     elif suffix == ".parquet":
@@ -126,7 +135,7 @@ def extract_retired_csp_plus_by_iris(df: pandas.DataFrame) -> pandas.DataFrame:
             "csp_plus_15_plus_count": csp_plus_count,
             "metric_definition": detection.metric_definition,
             "quality_flag": detection.quality_flag,
-            "quality_note": QUALITY_NOTE,
+            "quality_note": detection.quality_note,
             "source_name": df.attrs.get("source_name", SOURCE_NAME),
             "source_year": df.attrs.get("source_year") or detection.source_year,
         }
@@ -149,6 +158,10 @@ def detect_metric_columns(df: pandas.DataFrame) -> RetiredCspDetection:
         columns_by_normalized_name,
         CSP_PLUS_15_PLUS_COUNT_CANDIDATES,
     )
+    csp_plus_15_plus_count_column = validate_csp_plus_column(
+        csp_plus_15_plus_count_column,
+        df,
+    )
     if retired_count_column and csp_plus_15_plus_count_column:
         quality_flag = QUALITY_BOTH_AVAILABLE
     elif retired_count_column:
@@ -164,6 +177,7 @@ def detect_metric_columns(df: pandas.DataFrame) -> RetiredCspDetection:
         csp_plus_15_plus_count_column=csp_plus_15_plus_count_column,
         metric_definition=METRIC_DEFINITION,
         quality_flag=quality_flag,
+        quality_note=build_quality_note(csp_plus_15_plus_count_column, df),
         source_year=detect_source_year("", df.columns),
     )
 
@@ -176,7 +190,9 @@ def read_csv(path: Path) -> pandas.DataFrame:
 def read_csv_from_zip(path: Path) -> pandas.DataFrame:
     with zipfile.ZipFile(path) as archive:
         csv_names = [
-            name for name in archive.namelist() if name.lower().endswith(".csv")
+            name
+            for name in archive.namelist()
+            if name.lower().endswith(".csv") and "meta" not in name.lower()
         ]
         if not csv_names:
             raise UnsupportedRetiredCspFormatError(
@@ -184,6 +200,77 @@ def read_csv_from_zip(path: Path) -> pandas.DataFrame:
             )
         with archive.open(csv_names[0]) as csv_file:
             return pandas.read_csv(csv_file, sep=None, engine="python", dtype=str)
+
+
+def read_gsec_metadata_from_zip(path: Path) -> dict[str, str]:
+    with zipfile.ZipFile(path) as archive:
+        meta_names = [
+            name
+            for name in archive.namelist()
+            if name.lower().endswith(".csv") and "meta" in name.lower()
+        ]
+        if not meta_names:
+            return {}
+        content = archive.read(meta_names[0]).decode("utf-8-sig", errors="ignore")
+    rows = csv.DictReader(content.splitlines(), delimiter=";")
+    metadata: dict[str, str] = {}
+    for row in rows:
+        code = str(row.get("COD_VAR") or "").strip()
+        if not code.startswith("C22_POP15P_STAT_GSEC"):
+            continue
+        label = " ".join(
+            part.strip()
+            for part in (
+                str(row.get("LIB_VAR") or ""),
+                str(row.get("LIB_VAR_LONG") or ""),
+            )
+            if part
+        )
+        metadata[code] = label
+    return metadata
+
+
+def format_gsec_metadata(metadata: dict[str, str]) -> str:
+    if not metadata:
+        return "No C22_POP15P_STAT_GSEC metadata found."
+    return "\n".join(
+        f"{column}: {label}" for column, label in sorted(metadata.items())
+    )
+
+
+def validate_csp_plus_column(
+    column: str | None,
+    df: pandas.DataFrame,
+) -> str | None:
+    if column is None:
+        return None
+    metadata = df.attrs.get(GSEC_METADATA_ATTR) or {}
+    if not metadata:
+        return column
+    label = metadata.get(column)
+    if label and is_csp_plus_label(label):
+        return column
+    return None
+
+
+def is_csp_plus_label(label: str) -> bool:
+    normalized = normalize_column_name(label)
+    return (
+        "cadre" in normalized
+        or "professions_intellectuelles_superieures" in normalized
+    )
+
+
+def build_quality_note(
+    csp_plus_15_plus_count_column: str | None,
+    df: pandas.DataFrame,
+) -> str:
+    if csp_plus_15_plus_count_column:
+        return QUALITY_NOTE
+    metadata = df.attrs.get(GSEC_METADATA_ATTR) or {}
+    if metadata:
+        return QUALITY_NOTE + ". " + CSP_PLUS_UNAVAILABLE_NOTE
+    return QUALITY_NOTE
 
 
 def detect_csv_separator(path: Path) -> str | None:

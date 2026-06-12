@@ -16,6 +16,7 @@ if pandas is not None:
         QUALITY_NOTE,
         RetiredCspColumnError,
         extract_retired_csp_plus_by_iris,
+        format_gsec_metadata,
         load_retired_csp_iris,
     )
 
@@ -88,6 +89,76 @@ class RetiredCspLoaderTest(unittest.TestCase):
         self.assertEqual(
             output.loc[0, "quality_flag"],
             "retired_and_csp_plus_available",
+        )
+
+    def test_extract_uses_gsec32_for_retired_count(self) -> None:
+        df = pandas.DataFrame(
+            {
+                "IRIS": ["330630101"],
+                "C22_POP15P_STAT_GSEC32": ["300"],
+            }
+        )
+
+        output = extract_retired_csp_plus_by_iris(df)
+
+        self.assertEqual(output.loc[0, "retired_count"], 300.0)
+        self.assertIsNone(output.loc[0, "csp_plus_15_plus_count"])
+        self.assertEqual(output.loc[0, "quality_flag"], "retired_count_available")
+
+    def test_load_zip_uses_gsec_metadata_to_confirm_csp_plus(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "population_2022.zip"
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr(
+                    "base.csv",
+                    "IRIS;C22_POP15P_STAT_GSEC32;C22_POP15P_STAT_GSEC13_23\n"
+                    "330630101;300;100\n",
+                )
+                archive.writestr(
+                    "meta_base.csv",
+                    "COD_VAR;LIB_VAR;LIB_VAR_LONG\n"
+                    "C22_POP15P_STAT_GSEC32;Pop retraités;"
+                    "Nombre de personnes retraitées\n"
+                    "C22_POP15P_STAT_GSEC13_23;Pop cadres;"
+                    "Cadres ou professions intellectuelles supérieures\n",
+                )
+
+            df = load_retired_csp_iris(path)
+            output = extract_retired_csp_plus_by_iris(df)
+
+        self.assertEqual(output.loc[0, "retired_count"], 300.0)
+        self.assertEqual(output.loc[0, "csp_plus_15_plus_count"], 100.0)
+        self.assertIn(
+            "C22_POP15P_STAT_GSEC13_23",
+            format_gsec_metadata(df.attrs["gsec_metadata"]),
+        )
+
+    def test_zip_leaves_csp_plus_null_when_metadata_label_is_not_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "population_2022.zip"
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr(
+                    "base.csv",
+                    "IRIS;C22_POP15P_STAT_GSEC32;C22_POP15P_STAT_GSEC13_23\n"
+                    "330630101;300;100\n",
+                )
+                archive.writestr(
+                    "meta_base.csv",
+                    "COD_VAR;LIB_VAR;LIB_VAR_LONG\n"
+                    "C22_POP15P_STAT_GSEC32;Pop retraités;"
+                    "Nombre de personnes retraitées\n"
+                    "C22_POP15P_STAT_GSEC13_23;Pop groupe 13;"
+                    "Libellé non explicite\n",
+                )
+
+            df = load_retired_csp_iris(path)
+            output = extract_retired_csp_plus_by_iris(df)
+
+        self.assertEqual(output.loc[0, "retired_count"], 300.0)
+        self.assertIsNone(output.loc[0, "csp_plus_15_plus_count"])
+        self.assertIn(
+            "csp_plus_15_plus_count unavailable",
+            output.loc[0, "quality_note"],
         )
 
     def test_extract_raises_when_no_proxy_column_is_available(self) -> None:
