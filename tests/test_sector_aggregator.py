@@ -76,13 +76,44 @@ class SectorAggregatorTest(unittest.TestCase):
             "IRIS1:30000; IRIS2:20000",
         )
         self.assertEqual(output.loc[0, "population_75_plus"], 40.0)
+        self.assertEqual(output.loc[0, "population_75_plus_rounded"], 40)
         self.assertEqual(output.loc[0, "single_75_plus_count"], 10.0)
         self.assertEqual(output.loc[0, "people_80_plus_living_alone"], 5.0)
+        self.assertEqual(output.loc[0, "people_80_plus_living_alone_rounded"], 5)
         self.assertEqual(output.loc[0, "people_55_79_living_alone"], 15.0)
         self.assertEqual(output.loc[0, "one_person_households_all_ages"], 45.0)
         self.assertEqual(output.loc[0, "retired_count"], 50.0)
+        self.assertEqual(output.loc[0, "retired_count_rounded"], 50)
         self.assertEqual(output.loc[0, "csp_plus_15_plus_count"], 5.0)
+        self.assertEqual(output.loc[0, "csp_plus_15_plus_count_rounded"], 5)
+        self.assertEqual(output.loc[0, "living_alone_ratio_80_plus"], 0.125)
         self.assertEqual(output.loc[0, "source_years"], "2021")
+
+    def test_report_is_sorted_by_population_then_income_max_desc(self) -> None:
+        output = aggregate_sector_indicators(
+            {
+                "Low": ("IRIS1",),
+                "High lower income": ("IRIS2",),
+                "High higher income": ("IRIS3",),
+            },
+            income_df=pandas.DataFrame(
+                {
+                    "iris_code": ["IRIS1", "IRIS2", "IRIS3"],
+                    "median_disposable_income": [50000, 20000, 30000],
+                }
+            ),
+            population_df=pandas.DataFrame(
+                {
+                    "iris_code": ["IRIS1", "IRIS2", "IRIS3"],
+                    "population_75_plus": [10, 100, 100],
+                }
+            ),
+        )
+
+        self.assertEqual(
+            list(output["sector_name"]),
+            ["High higher income", "High lower income", "Low"],
+        )
 
     def test_income_without_weight_reports_range_only(self) -> None:
         output = aggregate_sector_indicators(

@@ -92,18 +92,30 @@ def aggregate_sector_indicators(
                 "median_income_weighted": median_weighted,
                 "median_income_iris_values": median_values,
                 "population_75_plus": population_75_plus,
+                "population_75_plus_rounded": round_optional(population_75_plus),
                 "single_75_plus_count": single_75_plus_count,
                 "people_80_plus_living_alone": people_80_plus_living_alone,
+                "people_80_plus_living_alone_rounded": round_optional(
+                    people_80_plus_living_alone
+                ),
                 "people_55_79_living_alone": people_55_79_living_alone,
                 "one_person_households_all_ages": one_person_households_all_ages,
                 "retired_count": retired_count,
+                "retired_count_rounded": round_optional(retired_count),
                 "csp_plus_15_plus_count": csp_plus_15_plus_count,
+                "csp_plus_15_plus_count_rounded": round_optional(
+                    csp_plus_15_plus_count
+                ),
+                "living_alone_ratio_80_plus": compute_ratio(
+                    people_80_plus_living_alone,
+                    population_75_plus,
+                ),
                 "quality_notes": " | ".join(quality_notes),
                 "source_years": ",".join(sorted(source_years)),
             }
         )
 
-    return pandas.DataFrame(
+    report = pandas.DataFrame(
         rows,
         columns=(
             "sector_name",
@@ -113,16 +125,22 @@ def aggregate_sector_indicators(
             "median_income_weighted",
             "median_income_iris_values",
             "population_75_plus",
+            "population_75_plus_rounded",
             "single_75_plus_count",
             "people_80_plus_living_alone",
+            "people_80_plus_living_alone_rounded",
             "people_55_79_living_alone",
             "one_person_households_all_ages",
             "retired_count",
+            "retired_count_rounded",
             "csp_plus_15_plus_count",
+            "csp_plus_15_plus_count_rounded",
+            "living_alone_ratio_80_plus",
             "quality_notes",
             "source_years",
         ),
     )
+    return sort_sector_report(report)
 
 
 def aggregate_income(
@@ -163,6 +181,38 @@ def aggregate_income(
             "reliable weight column was provided"
         )
     return median_min, median_max, weighted_income, median_values
+
+
+def sort_sector_report(report: pandas.DataFrame) -> pandas.DataFrame:
+    if report.empty:
+        return report
+    sorted_report = report.sort_values(
+        by=["population_75_plus", "median_income_max"],
+        ascending=[False, False],
+        na_position="last",
+        kind="mergesort",
+    )
+    return sorted_report.reset_index(drop=True)
+
+
+def round_optional(value: float | None) -> int | None:
+    if value is None or pandas.isna(value):
+        return None
+    return int(round(float(value)))
+
+
+def compute_ratio(
+    numerator: float | None,
+    denominator: float | None,
+) -> float | None:
+    if numerator is None or denominator is None:
+        return None
+    if pandas.isna(numerator) or pandas.isna(denominator):
+        return None
+    denominator_float = float(denominator)
+    if denominator_float == 0:
+        return None
+    return float(numerator) / denominator_float
 
 
 def aggregate_single_75_plus(

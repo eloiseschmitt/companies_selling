@@ -62,6 +62,7 @@ def build_sector_report(
     )
     csv_path = output_dir / "sector_report.csv"
     xlsx_path = output_dir / "sector_report.xlsx"
+    ranking_xlsx_path = output_dir / "sector_ranking.xlsx"
     report.to_csv(csv_path, index=False, encoding="utf-8-sig")
     if output_format in {"xlsx", "all"}:
         write_xlsx(report, xlsx_path)
@@ -70,6 +71,7 @@ def build_sector_report(
         write_xlsx(report, xlsx_path)
     else:
         raise ReportBuildError(f"Unsupported output format: {output_format}")
+    write_xlsx(report, ranking_xlsx_path)
 
     write_output_manifest(source_manifest_path, output_dir / "source_manifest.json")
     write_quality_report(report, output_dir / "quality_report.md")
