@@ -2,15 +2,8 @@ import html
 import json
 import os
 import sqlite3
-from typing import Any
 
-pandas_module: Any | None
-try:
-    import pandas as pandas_module
-except Exception:
-    pandas_module = None
-
-pd: Any | None = pandas_module
+import pandas as pd
 
 DB = "companies.db"
 OUT = "companies.html"
@@ -47,9 +40,6 @@ def build_naf_map(xls_path: str):
     """Read the int_courts_naf_rev_2.xls file and return a dict code->libelle."""
     naf_map: dict[str, str] = {}
     if not os.path.exists(xls_path):
-        return naf_map
-    if pd is None:
-        # pandas not available in this environment
         return naf_map
     try:
         df = pd.read_excel(xls_path)
