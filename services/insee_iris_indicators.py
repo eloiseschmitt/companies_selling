@@ -341,11 +341,19 @@ def compute_upper_socio_professional_retired(
     retired = sum_numeric_values(
         sector.iris_codes, source_rows.rows_by_iris, retired_column
     )
-    csp_plus = sum(
-        sum_numeric_values(sector.iris_codes, source_rows.rows_by_iris, column)
+    csp_plus_values = [
+        value
         for column in csp_columns
-    )
-    if retired is None or csp_plus is None:
+        if (
+            value := sum_numeric_values(
+                sector.iris_codes,
+                source_rows.rows_by_iris,
+                column,
+            )
+        )
+        is not None
+    ]
+    if retired is None or not csp_plus_values:
         return unavailable_result(
             sector,
             INDICATOR_UPPER_SOCIO_PROFESSIONAL_RETIRED,
@@ -353,6 +361,7 @@ def compute_upper_socio_professional_retired(
             source_rows.source,
             "Configured columns were present but no usable numeric values were found.",
         )
+    csp_plus = sum(csp_plus_values)
 
     return IndicatorResult(
         sector=sector.name,
