@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -227,12 +228,13 @@ def compute_ratio(
 ) -> float | None:
     if numerator is None or denominator is None:
         return None
-    if pandas.isna(numerator) or pandas.isna(denominator):
-        return None
+    numerator_float = float(numerator)
     denominator_float = float(denominator)
+    if math.isnan(numerator_float) or math.isnan(denominator_float):
+        return None
     if denominator_float == 0:
         return None
-    return float(numerator) / denominator_float
+    return numerator_float / denominator_float
 
 
 def aggregate_single_75_plus(

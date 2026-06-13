@@ -234,10 +234,10 @@ def find_excel_header_index(df: pandas.DataFrame) -> int | None:
     income_candidates = {
         normalize_column_name(column) for column in MEDIAN_INCOME_CANDIDATES
     }
-    for index, row in df.iterrows():
+    for row_index, (_, row) in enumerate(df.iterrows()):
         values = {normalize_column_name(str(value)) for value in row.dropna()}
         if values & iris_candidates and values & income_candidates:
-            return int(index)
+            return row_index
     return None
 
 

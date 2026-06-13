@@ -534,9 +534,9 @@ def resolve_source_path(
 
     manifest_path = Path(manifest_path)
     if not manifest_path.exists():
-        candidates = find_raw_source_candidates(raw_dir, source_key)
-        if candidates:
-            return sorted(candidates)[-1]
+        raw_candidates = find_raw_source_candidates(raw_dir, source_key)
+        if raw_candidates:
+            return sorted(raw_candidates)[-1]
         raise CliSourceError(
             f"No {label} source provided and manifest not found: {manifest_path}. "
             "Run download-sources with source URLs first, or pass the source file "

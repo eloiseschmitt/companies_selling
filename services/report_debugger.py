@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas
 
@@ -335,7 +335,8 @@ def build_mapped_examples(
     filtered = normalized_df[
         normalized_df["iris_code"].map(normalize_iris_code).isin(mapped_iris)
     ]
-    return tuple(filtered.head(5).to_dict(orient="records"))
+    records = cast(list[dict[str, Any]], filtered.head(5).to_dict(orient="records"))
+    return tuple(records)
 
 
 def detect_income_used_columns(df: pandas.DataFrame) -> dict[str, str]:

@@ -2,11 +2,15 @@ import html
 import json
 import os
 import sqlite3
+from typing import Any
 
+pandas_module: Any | None
 try:
-    import pandas as pd
+    import pandas as pandas_module
 except Exception:
-    pd = None
+    pandas_module = None
+
+pd: Any | None = pandas_module
 
 DB = "companies.db"
 OUT = "companies.html"

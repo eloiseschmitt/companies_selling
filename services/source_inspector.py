@@ -8,7 +8,7 @@ import re
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import IO, Any
 
 import pandas
 
@@ -77,7 +77,7 @@ def read_table(path: Path) -> pandas.DataFrame:
     raise ValueError(f"Unsupported source format: {suffix or '<none>'}")
 
 
-def read_table_from_file_obj(name: str, file_obj: BinaryIO) -> pandas.DataFrame:
+def read_table_from_file_obj(name: str, file_obj: IO[bytes]) -> pandas.DataFrame:
     suffix = Path(name).suffix.lower()
     content = file_obj.read()
     if suffix == ".csv":
@@ -125,10 +125,10 @@ def make_seekable(source: object) -> Any:
 
 
 def find_header_index(df: pandas.DataFrame) -> int | None:
-    for index, row in df.iterrows():
+    for row_index, (_, row) in enumerate(df.iterrows()):
         values = {str(value).strip().upper() for value in row.dropna()}
         if values & {candidate.upper() for candidate in IRIS_COLUMN_CANDIDATES}:
-            return int(index)
+            return row_index
     return None
 
 

@@ -259,13 +259,13 @@ def detect_age_columns(
             (PREFERRED_75_PLUS_COLUMN,),
         )
         if preferred_column and direct_column != preferred_column:
-            available_columns = ", ".join(df.columns)
+            available_columns_text = ", ".join(str(column) for column in df.columns)
             raise PopulationColumnError(
                 "P22_POP75P exists but was not selected as population 75+ column. "
                 f"File read: {df.attrs.get('source_path', '<dataframe>')}. "
                 f"Selected column: {direct_column}. "
                 f"Expected column: {preferred_column}. "
-                f"Available columns: {available_columns}"
+                f"Available columns: {available_columns_text}"
             )
         return (direct_column,), QUALITY_EXACT
 
